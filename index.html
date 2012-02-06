@@ -1,0 +1,116 @@
+<html>
+<head>
+<title>
+    Turtleherder recreational sports team attendance tracker
+</title>
+<style type="text/css">
+  body {
+  	font: 100% Verdana, Arial, Helvetica, sans-serif;
+  	background-color: #DEE;
+  	margin: 10px; 
+  	padding: 0;
+  }
+  #blink {
+    color: purple;
+    font-size: 80%;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  a {
+    color: purple;
+  }
+  #mainContainer {
+    width: 500px;
+    margin: auto;
+  }
+  p#end {
+    margin-bottom: 5px;
+    padding-bottom: 35px;
+    border-bottom: 1px black solid;
+    
+  }
+  
+</style>
+
+
+<body>
+  <div id="mainContainer">
+    <h1>
+        Turtleherder
+    </h1>
+    <p>This is a placeholder page for the upcoming revamp of <strong>turtleherder.com</strong>, a simple attendance tracker for
+      co-ed or single-sex recreational sports teams.</p> 
+    <p>For those of you who are wondering what's the difference and why would we want to keep track of that,
+      many co-ed sports leagues require that each team have a certain number of women present in order to play. 
+      This app saves you from sending 80 million emails back and forth trying to figure out who's going to be at the game.</p>
+    <p><a href="bobcats">Here is an example</a>.</p>
+    <p id="end">The home team in the example is set up so that you need seven players to play, two of whom must be 
+      female. Feel free to change anything you want, as this is a fake team for demonstration purposes only. </p> 
+    <p>In the near future, you'll be able to set up and configure your own home teams. Right now, 
+      if you want me to set one up for you (it's free and takes about two seconds), 
+      email me at harrington dot richard at gmail dot com.</p>
+
+    <p id="blink">Brought to you by the Committee to Reinstate the Blink Tag.</p>
+  </div>
+  
+<script type="text/javascript">
+
+  var blinkEl = document.getElementById('blink');
+  var blinkInterval, unblinkInterval;
+  
+  var registerEventHandler,
+      unregisterEventHandler,
+      blinkClickHandler,
+      blink,
+      unblink;
+
+  registerEventHandler = function( node, event, handler ) {
+    if (typeof node.addEventListener === "function" ) {
+      node.addEventListener( event, handler, false );
+    } else {
+      node.attachEvent( "on" + event, handler );
+    }
+  };
+  
+  unregisterEventHandler = function( node, event, handler ) {
+    if (typeof node.removeEventListener === "function" ) {
+      node.removeEventListener( event, handler, false );
+    } else {
+      node.detachEvent( "on" + event, handler );
+    }
+  };
+  
+  blinkClickHandler = function() {
+    alert("You thought perhaps clicking might stop it? \nOh, all right then.");
+    clearInterval( blinkInterval );
+    clearInterval( unblinkInterval );
+    blinkEl.style.color = 'black';
+    blinkEl.style['font-weight'] = 'normal'; 
+    blinkEl.style.cursor = 'default';
+    
+    unregisterEventHandler ( blinkEl, 'click', blinkClickHandler );
+  };
+
+  blink = function() {
+    blinkEl.style.display = 'none';
+  };
+
+  unblink = function() {
+    blinkEl.style.display = 'block';
+  };
+
+  registerEventHandler ( blinkEl, 'click', blinkClickHandler);
+  
+  // Commmence blinking.
+  (function( interval ) {
+    blinkInterval = setInterval( blink, interval * 2 );
+    setTimeout( function() {
+      unblinkInterval = setInterval( unblink, interval * 2 );
+    }, interval );
+  })(1000);
+    
+  
+</script>
+  
+</body>
+</html>
