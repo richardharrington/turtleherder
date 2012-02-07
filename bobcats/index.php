@@ -6,7 +6,7 @@
 <link rel="stylesheet" type="text/css" href="css/main.css" />
 <script type="text/javascript" src="js/main.js"></script>
 </head>
-<body class="mainBody" onLoad="setPastGamesDisplayPref('pastGamesOnIndexPage')">
+<body class="oneColElsCtr" onLoad="setPastGamesDisplayPref('pastGamesOnIndexPage')">
 
 <div id="container">
   <div id="mainContent">

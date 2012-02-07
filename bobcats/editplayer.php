@@ -6,7 +6,7 @@
 <link rel="stylesheet" type="text/css" href="css/main.css" />
 <script type="text/javascript" src="js/main.js"></script>
 </head>
-<body class="mainBody">
+<body class="oneColElsCtr">
 
 <div id="container">
   <div id="mainContent">

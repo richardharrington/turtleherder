@@ -1,13 +1,13 @@
 body {
 	font: 100% Verdana, Arial, Helvetica, sans-serif;
 	background: #666666;
-	margin: 0; 
+	margin: 0; /* it's good practice to zero the margin and padding of the body element to account for differing browser defaults */
 	padding: 0;
-	text-align: center; 
+	text-align: center; /* this centers the container in IE 5* browsers. The text is then set to the left aligned default in the #container selector */
 	color: #000000;
 	background-color: darkgreen;
 }
-.mainBody #container {
+.oneColElsCtr #container {
 	width: 46em;
 	background: #FFFFFF;
 
@@ -22,9 +22,9 @@ body {
 	border: 0px solid #000000;
 	text-align: left; /* this overrides the text-align: center on the body element. */
 }
-.mainBody #mainContent {
+.oneColElsCtr #mainContent {
   
-	padding: 5px 10px 0px 20px; 
+	padding: 5px 10px 0px 20px; /* remember that padding is the space inside the div box and margin is the space outside the div box */
 }
 .style1 {font-size: small}
 .style2 {font-size: x-small}
