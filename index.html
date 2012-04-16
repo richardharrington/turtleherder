@@ -4,114 +4,83 @@
     Turtleherder recreational sports team attendance tracker
 </title>
 <style type="text/css">
+
   body {
-  	font: 100% Verdana, Arial, Helvetica, sans-serif;
-  	background-color: #DEE;
-  	margin: 10px; 
-  	padding: 0;
-  	line-height: 1.35;
+  	font: 90% Verdana, Arial, Helvetica, sans-serif;
+  	line-height: 1.4;
+  	
+    background: rgb(180,221,144); /* Old browsers */
+    background: url(data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiA/Pgo8c3ZnIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgdmlld0JveD0iMCAwIDEgMSIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSI+CiAgPGxpbmVhckdyYWRpZW50IGlkPSJncmFkLXVjZ2ctZ2VuZXJhdGVkIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgeDE9IjAlIiB5MT0iMCUiIHgyPSIwJSIgeTI9IjEwMCUiPgogICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2I0ZGQ5MCIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjUwJSIgc3RvcC1jb2xvcj0iIzgzYmY1NiIgc3RvcC1vcGFjaXR5PSIxIi8+CiAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNiNGUzOTEiIHN0b3Atb3BhY2l0eT0iMSIvPgogIDwvbGluZWFyR3JhZGllbnQ+CiAgPHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjEiIGhlaWdodD0iMSIgZmlsbD0idXJsKCNncmFkLXVjZ2ctZ2VuZXJhdGVkKSIgLz4KPC9zdmc+);
+    background: -moz-linear-gradient(top,  rgba(180,221,144,1) 0%, rgba(131,191,86,1) 50%, rgba(180,227,145,1) 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(180,221,144,1)), color-stop(50%,rgba(131,191,86,1)), color-stop(100%,rgba(180,227,145,1))); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  rgba(180,221,144,1) 0%,rgba(131,191,86,1) 50%,rgba(180,227,145,1) 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  rgba(180,221,144,1) 0%,rgba(131,191,86,1) 50%,rgba(180,227,145,1) 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  rgba(180,221,144,1) 0%,rgba(131,191,86,1) 50%,rgba(180,227,145,1) 100%); /* IE10+ */
+    background: linear-gradient(top,  rgba(180,221,144,1) 0%,rgba(131,191,86,1) 50%,rgba(180,227,145,1) 100%); /* W3C */
+    /* IE9 SVG, needs conditional override of 'filter' to 'none' */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#b4dd90', endColorstr='#b4e391',GradientType=0 ); /* IE6-8 */
+
   }
-  #blink {
-    color: purple;
-    font-size: 80%;
-    font-weight: bold;
-    cursor: pointer;
+  li {
+      font-size: 90%;
+      margin-bottom: .75em;
   }
   a {
     color: purple;
   }
   #mainContainer {
+    background-color: #fff;
     width: 500px;
-    margin: auto;
-  }
-  p#end {
-    margin-bottom: 5px;
-    padding-bottom: 35px;
-    border-bottom: 1px black solid;
+    margin: 35px auto;
+    border-radius: 20px;
+    -webkit-border-radius: 20px;
+    -moz-border-radius: 20px;
+    padding: 15px 30px 15px 30px;
+    
+    box-shadow: 3px 3px 6px 3px rgba(14, 99, 25, .7);
+    -webkit-box-shadow: 3px 3px 6px 3px rgba(14, 99, 25, .7);
+    moz-box-shadow: 3px 3px 6px 3px rgba(14, 99, 25, .7);
+
+    /* For IE 8 */
+    -ms-filter: "progid:DXImageTransform.Microsoft.Shadow(Strength=4, Direction=135, Color='#204F09')";
+    /* For IE 5.5 - 7 */
+    filter: progid:DXImageTransform.Microsoft.Shadow(Strength=4, Direction=135, Color='#204F09');
+    
     
   }
-  
 </style>
 
+<!--[if gte IE 9]>
+  <style type="text/css">
+    .gradient {
+       filter: none;
+    }
+  </style>
+<![endif]-->
 
-<body>
+
+<body class="gradient">
   <div id="mainContainer">
     <h1>
         Turtleherder
     </h1>
-    <p>This is a placeholder page for the upcoming revamp of <strong>turtleherder.com</strong>, a simple attendance tracker for
-      co-ed or single-sex recreational sports teams.</p> 
-    <p>For those of you who are wondering what's the difference and why would we want to keep track of that,
-      many co-ed sports leagues require that each team have a certain number of women present in order to play. 
-      This app saves you from sending 80 million emails back and forth trying to figure out who's going to be at the game.</p>
+    <p>This is a placeholder page for the upcoming revamp of <strong>turtleherder.com</strong>, a simple attendance tracker for co-ed or single-sex recreational sports teams.</p> 
+    <p>You may be wondering, what's the difference between single-sex and co-ed where attendance is concerned, and why would we need a special web page to keep track of this anyway?</p>
+    <p>There are two issues. </p>
+    <ul>
+        <li>First, it's important to know roughly who's going to be there because if you ask people who are not on the team to show up as subs and every regular member of the team shows up, then the subs won't get to play. </li>
+        <li>Also, many co-ed sports leagues require that each team field a certain number of women in order to play. </li>
+    </ul>
+            
+    <p>So you've got two separate quotas you're trying to fill -- one for women and one for total players -- and you end up sending about 80 million emails back and forth trying to figure out who's going to be at the game. That's the problem this app will attempt to address, in as simple a fashion as possible.</p>
     <p><a href="bobcats">Here is an example</a>.</p>
     <p>The home team in the example is set up so that you need seven players to play, two of whom must be 
       female. Feel free to change anything you want, as this is a fake team for demonstration purposes only. </p> 
     <p id="end">In the near future, you'll be able to set up and configure your own home teams. Right now, 
       if you want me to set one up for you (it's free and takes about two seconds), 
-      email me at harrington dot richard at gmail dot com.</p>
+      email me at <strong>harrington dot richard at gmail dot com.</strong></p>
 
-    <p id="blink">Brought to you by the Committee to Reinstate the Blink Tag.</p>
   </div>
-  
-<script type="text/javascript">
-
-  var blinkEl = document.getElementById('blink');
-  var blinkInterval, unblinkInterval;
-  
-  var registerEventHandler,
-      unregisterEventHandler,
-      blinkClickHandler,
-      blink,
-      unblink;
-
-  registerEventHandler = function( node, event, handler ) {
-    if (typeof node.addEventListener === "function" ) {
-      node.addEventListener( event, handler, false );
-    } else {
-      node.attachEvent( "on" + event, handler );
-    }
-  };
-  
-  unregisterEventHandler = function( node, event, handler ) {
-    if (typeof node.removeEventListener === "function" ) {
-      node.removeEventListener( event, handler, false );
-    } else {
-      node.detachEvent( "on" + event, handler );
-    }
-  };
-  
-  blinkClickHandler = function() {
-    alert("You thought perhaps clicking might stop it? \nOh, all right then.");
-    clearInterval( blinkInterval );
-    clearInterval( unblinkInterval );
-    blinkEl.style.color = 'black';
-    blinkEl.style['font-weight'] = 'normal'; 
-    blinkEl.style.cursor = 'default';
-    
-    unregisterEventHandler ( blinkEl, 'click', blinkClickHandler );
-  };
-
-  blink = function() {
-    blinkEl.style.display = 'none';
-  };
-
-  unblink = function() {
-    blinkEl.style.display = 'block';
-  };
-
-  registerEventHandler ( blinkEl, 'click', blinkClickHandler);
-  
-  // Commmence blinking.
-  (function( interval ) {
-    blinkInterval = setInterval( blink, interval * 2 );
-    setTimeout( function() {
-      unblinkInterval = setInterval( unblink, interval * 2 );
-    }, interval );
-  })(1000);
-    
-  
-</script>
   
 </body>
 </html>
