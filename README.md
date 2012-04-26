@@ -9,8 +9,8 @@ To see how it works, explore the example at [turtleherder.com](http://www.turtle
 
 I wrote this for a team I was on a few years ago. They're still using it. People like it because the alternatives (facebook, evite, email, calling or texting each other, various league scoring sites) all had a lot more bells and whistles than they need, or are too cumbersome or otherwise painful.
 
-This was written a while ago when I was first learning PHP, and the code is fairly unremarkable.  I didn't even know Javascript at all at the time, actually -- it was all server-side behavior. I added some Javascript a couple years later, as I was learning that language. 
+This was written a while ago when I was first learning PHP.  I didn't even know Javascript at all at the time, actually -- it was all server-side behavior. I added some Javascript a couple years later, as I was learning that language. 
 
-I'm planning to significantly revamp the whole thing very soon, probably in Ruby. The upcoming version will allow the user to set up and configure their own instances of the app. 
+I'm planning to significantly revamp the whole thing very soon, either in Ruby or Node (Ruby because I'm thinking of learning Rails and it seems like that wouldbe a good fit, Node because I happen to know it). The upcoming version will allow the user to set up and configure their own instances of the app. 
 
 If you have a team and want me to set you up with an instance before that, let me know. It's easy, and I'm already hosting that domain name.
