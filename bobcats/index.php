@@ -136,14 +136,14 @@ function printgame($game_id) {
 
   $sql = "SELECT unixtimestamp, name, color " .
       "FROM bobcats_game WHERE id='$game_id'";
-    if (!$result=@mysql_query($sql)) {
+    if (!$result=$dbcnx->query($sql)) {
       echo '<p>Error accessing game database for printgame function: ' .
           mysql_error() . '</p>';
     }
 
     // Display header for game
 
-    $row = @mysql_fetch_array($result);  // only one row.
+    $row = $result->fetch_array();  // only one row.
 
     $date = date('l, F j, Y', $row['unixtimestamp']);  // Sunday, January 5, 2010
     $time = date('g:i a', $row['unixtimestamp']);  // 6:07 pm
@@ -164,7 +164,7 @@ function printgame($game_id) {
     echo ":</span></p>";
 
     $sql = "SELECT id, gender FROM bobcats_player ORDER BY name";
-    if (!$result=@mysql_query($sql)) {
+    if (!$result=$dbcnx->query($sql)) {
            echo '<p>Error accessing game database for printgame function inside else loop: ' .
                     mysql_error() . '</p>';
     }
@@ -259,17 +259,16 @@ function printgame($game_id) {
 
 // main block
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
+$dbcnx = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  'Krul6666',
+  '496492_turtlemaster'
+);
 if (!$dbcnx) {
   exit('<p>Unable to connect to the ' .
       'database server at this time.</p>');
 }
- // Select the badgers database
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the master ' .
-      'database at this time.</p>');
-}
-
 
 // If an attendance entry has been edited,
 // update the database.
@@ -279,7 +278,7 @@ if (isset($_GET['has_changed'])) {
   $sql = "UPDATE bobcats_attendance SET " .
          "status='$attendance_status' " .
          "WHERE id='$attendance_id'";
-  if (@mysql_query($sql)) {
+  if ($dbcnx->query($sql)) {
 // I commented out this line because it's kind of stupid and just gets in the way and confuses the user.
 //    echo '<p>Your status has been updated.</p>';
   } else {
@@ -287,11 +286,6 @@ if (isset($_GET['has_changed'])) {
         mysql_error() . '</p>';
   }
 }
-
-
-
-
-
 
 
 
@@ -307,10 +301,9 @@ if (isset($_GET['has_changed'])) {
 
 
 // Display each game (except ones in the past if show_past_games is false.)
-$result = @mysql_query('SELECT id, unixtimestamp FROM bobcats_game ORDER BY unixtimestamp ASC');
+$result = $dbcnx->query('SELECT id, unixtimestamp FROM bobcats_game ORDER BY unixtimestamp ASC');
 if (!$result) {
-  exit('<p>Error performing query: ' .
-     mysql_error() . '</p>');
+  exit('<p>Error performing query</p>');
 }
 
 // This is for setting up the system to figure out where to display the "Past games" and
@@ -319,7 +312,7 @@ $this_is_the_first_past_game = TRUE;
 $this_is_the_first_future_game = TRUE;
 $this_game_is_in_the_future = FALSE;
 echo ('<div id="pastGames" class="hiding">');
-while ($row = mysql_fetch_array($result)) {
+while ($row = $result->fetch_array()) {
     $this_game_is_in_the_future = ($row['unixtimestamp'] > time());
     if ($this_is_the_first_past_game AND !$this_game_is_in_the_future) {
       echo '<p><span class="style3"><strong>Past games:</strong></span></p>';
