@@ -46,9 +46,9 @@ function setPastGamesDisplayPref (cookieName) {
     }
   }
 }
-      
-  
-  
+
+
+
 
 
 function validateGame(myForm) {
@@ -62,13 +62,13 @@ function validateGame(myForm) {
     noErrors = false;
     document.getElementById("nameError").className = "showing";
   }
-  
+
   // date
   if ( !formItemSelected (myForm.month) || !formItemSelected (myForm.day) || !formItemSelected (myForm.year) ) {
     noErrors = false;
     document.getElementById("dateError").className = "showing";
   }
-  
+
   // time
   if ( !formItemSelected (myForm.hour) || !formItemSelected (myForm.minute) || !formItemSelected (myForm.ampm) ) {
     noErrors = false;
@@ -90,13 +90,13 @@ function validatePlayer() {
     noErrors = false;
     document.getElementById("nameError").className = "showing";
   }
-  
+
   // gender
   if ( !myForm.gender[0].checked && !myForm.gender[1].checked ) {
     noErrors = false;
     document.getElementById("genderError").className = "showing";
   }
-  
+
   return noErrors;
 }
 
@@ -104,14 +104,14 @@ function validatePlayer() {
 
 function formItemSelected (formSelectObject, test) {
   // first the special case of the "blank" option we're sometimes using
-  if (formSelectObject.options[0].value == "blank" && formSelectObject.options[0].selected) 
+  if (formSelectObject.options[0].value == "blank" && formSelectObject.options[0].selected)
     return false;
-  
-  
+
+
   var itemSelected = false;
   for (var i=0; i < formSelectObject.length; i++) {
     itemSelected = itemSelected || formSelectObject.options[i].selected;
-    
+
   }
   return itemSelected;
 }

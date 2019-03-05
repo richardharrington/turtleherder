@@ -13,7 +13,7 @@
     <div class="style1">
 
 
-<?php 
+<?php
 
 function un_escape($str) {
 	if(get_magic_quotes_gpc()) {
@@ -51,7 +51,7 @@ if (!@mysql_select_db('496492_turtlemaster')) {
 
 $red = "#CC0000";
 
-if (isset($_REQUEST['id'])) {   
+if (isset($_REQUEST['id'])) {
 	$updating_existing_game = TRUE;
 	echo "<h1>Edit Game</h1>";
 }
@@ -68,7 +68,7 @@ else {
 }
 
 ?>
-	 
+
 
 <p class="link-row"><span class ="style1"><a href="index.php">home</a> | <a href="players.php">manage roster</a> | <a href="games.php">manage games</a></p>
 
@@ -89,10 +89,10 @@ $data_uploaded = FALSE;
 // If $_POST['name'] exists, then this is either a fresh call
 // from an "edit game" link, or a call from this very page with
 // form information to process (which should already have been
-// validated in Javascript).  
+// validated in Javascript).
 
 // In this IF block, we are assigning non-empty values to all the variables,
-// if they (and their associates, like hour for minute) 
+// if they (and their associates, like hour for minute)
 // have been entered and the dates are not bad.
 
 // All the info should already have been validated by Javascript in the previous rendering
@@ -103,24 +103,24 @@ if ($called_by_self) {
 	// name
 	$game_name = un_escape($_POST['name']);
 
-	// color	
+	// color
 	$game_color = un_escape($_POST['color']);
-	
+
 	// date
   $game_month = (int)$_POST['month'];
 	$game_day = (int)$_POST['day'];
 	$game_year = (int)$_POST['year'];
-		
-	// time 
+
+	// time
 	$game_hour = (int)$_POST['hour'];
 	$game_minute = (int)$_POST['minute'];
 	$game_ampm = $_POST['ampm'];
-	
+
 	$game_unixtimestamp = mktime (convert_24hour($game_hour, $game_ampm), $game_minute, 0,   // zero seconds
 			$game_month, $game_day, $game_year);
 	$escaped_game_name = mysql_real_escape_string($game_name);
 	$escaped_game_color = mysql_real_escape_string($game_color);
-		
+
 	if ($updating_existing_game) {
 		$id = $_POST['id'];
 		$sql = "UPDATE bobcats_game SET " .
@@ -147,8 +147,8 @@ if ($called_by_self) {
 			echo '<p>Error adding game: ' . mysql_error() . '</p>';
 		}
 		$game_id = mysql_insert_id();
-			
-		$sql = "INSERT INTO bobcats_attendance (game_id, player_id) " . 
+
+		$sql = "INSERT INTO bobcats_attendance (game_id, player_id) " .
 				"SELECT '$game_id', id FROM bobcats_player";
 		if (@mysql_query($sql)) {
 				echo '<p>Players assigned to new game.</p>';
@@ -158,7 +158,7 @@ if ($called_by_self) {
 		}
 	}
 	$data_uploaded = TRUE;
-		
+
 	?>
 	<p><a href="<?php echo $_SERVER['PHP_SELF']; ?>">Add another game</a></p>
 	<p><a href="games.php">Return to games management page</a></p>
@@ -175,8 +175,8 @@ else if ($updating_existing_game) {
 	$row = mysql_fetch_array($game);
 	$game_name = $row['name'];
 	$game_color = $row['color'];
-	$game_month = (int)date('n', $row['unixtimestamp']);   
-	$game_day = (int)date('j', $row['unixtimestamp']);   
+	$game_month = (int)date('n', $row['unixtimestamp']);
+	$game_day = (int)date('j', $row['unixtimestamp']);
 	$game_year = (int)date('Y', $row['unixtimestamp']);
 	$game_hour = (int)date('g', $row['unixtimestamp']);
 	$game_minute = (int)date('i', $row['unixtimestamp']);
@@ -184,21 +184,21 @@ else if ($updating_existing_game) {
 }
 
 if (!$data_uploaded) {
-		
+
 	?>
 
 	<form name="form1" action="<?php echo $_SERVER['PHP_SELF']; ?>" method="post">
 	<p><?php if ($updating_existing_game) echo "Update game info:"; else echo "Enter new game:"; ?></p>
-	
+
   <p class="hiding" id="nameError"><span class="error">Please type in a name for the opposing team.</span></p><br />
-  
-	<label>Opposing team name: <input type="text" name="name" 
+
+	<label>Opposing team name: <input type="text" name="name"
 			value="<?php echo htmlspecialchars($game_name); ?>" /></label><br /><br />
-	<label>Opposing team color (optional): <input type="text" name="color" 
+	<label>Opposing team color (optional): <input type="text" name="color"
 			value="<?php echo htmlspecialchars($game_color); ?>" /></label><br /><br />
 
 	<p class="hiding" id="dateError"><span class="error">Please select a valid date.</span></p><br />
-		
+
 	<strong>Date:</strong>&nbsp;&nbsp;month
 	<label><select name="month">
 		<?php
@@ -209,11 +209,11 @@ if (!$data_uploaded) {
 		for ($month = 1; $month <= 12; $month++) {
 			echo "<option value=\"$month\"";
 			if ($month === $game_month) {   //  if $month equals the month from the database or the input
-				echo " selected"; 
+				echo " selected";
 			}
 			$month_for_display = date('M', mktime(0,0,0,$month));
 			echo ">$month_for_display</option><br />";
-		} 
+		}
 		?>
 	</select></label>&nbsp;&nbsp;day
 	<label><select name="day">
@@ -224,10 +224,10 @@ if (!$data_uploaded) {
 		for ($day = 1; $day <= 31; $day++) {
 			echo "<option value=\"$day\"";
 			if ($day === $game_day) {   //  if $day equals the day from the database or the input
-				echo " selected"; 
+				echo " selected";
 			}
 			echo ">$day</option><br />";
-		} 
+		}
 		?>
 	</select></label>&nbsp;&nbsp;year
 	<label><select name="year">
@@ -239,10 +239,10 @@ if (!$data_uploaded) {
 		for ($year = $current_year; $year <= $current_year+2; $year++) {
 			echo "<option value=\"$year\"";
 			if ($year === $game_year) {   //  if $day equals the day from the database or the input
-				echo " selected"; 
+				echo " selected";
 			}
 			echo ">$year</option><br />";
-		} 
+		}
 		?>
 	</select></label>
 	<br />
@@ -260,10 +260,10 @@ if (!$data_uploaded) {
 		for ($hour = 1; $hour <= 12; $hour++) {
 			echo "<option value=\"$hour\"";
 			if ($hour === $game_hour) {   //  if $month equals the month from the database or the input
-				echo " selected"; 
+				echo " selected";
 			}
 			echo ">$hour</option><br />";
-		} 
+		}
 		?>
 	</select></label>&nbsp;&nbsp;minute
 	<label><select name="minute">
@@ -274,12 +274,12 @@ if (!$data_uploaded) {
 		for ($minute = 0; $minute <= 55; $minute = $minute + 5) {
 			echo "<option value=\"$minute\"";
 			if ($minute === $game_minute) {   //  if $day equals the day from the database or the input
-				echo " selected"; 
+				echo " selected";
 			}
 			// kludgy way of adding leading zero:
 			$minute_for_display = date('i', mktime(0,$minute));
 			echo ">$minute_for_display</option><br />";
-		} 
+		}
 		?>
 	</select></label>&nbsp;
 	<label><select name="ampm" size="2">
@@ -297,31 +297,31 @@ if (!$data_uploaded) {
 		?>
 	</select></label><br /><br />
 
-	<?php 
-	if ($updating_existing_game) { 
-		?> 
+	<?php
+	if ($updating_existing_game) {
+		?>
 		<label><input type="hidden" name="id" value="<?php echo $_REQUEST['id']; ?>" /></label>
 		<?php
-	} 
+	}
 	?>
-		
+
 	<input type="submit" name="submit" value="SUBMIT" onClick="return validateGame(document.form1)" />
-	
-	
-	
+
+
+
 	</form>
-	
-<?php 
+
+<?php
 
 }
 
 ?>
 
 <br />
-</div>  
-</div>  
-</div>  
-  
+</div>
+</div>
+</div>
+
 
 
 </body>

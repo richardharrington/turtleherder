@@ -15,7 +15,7 @@
 
 <p class="link-row"><span class ="style1"><a href="index.php">home</a> | <a href="players.php">manage roster</a> | <a href="games.php">manage games</a></p>
 
-<?php 
+<?php
 
 
 error_reporting(E_ALL);
@@ -24,7 +24,7 @@ ini_set('display_errors', true);
 $dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
 if (!$dbcnx) {
 	exit ('<p>Unable to connect to the database server at this time.</p>');
-	
+
 }
 
 if (!@mysql_select_db('496492_turtlemaster')) {

@@ -16,7 +16,7 @@
 
 
 
-<?php 
+<?php
 
 
 error_reporting(E_ALL);
@@ -39,7 +39,7 @@ if (!@mysql_select_db('496492_turtlemaster')) {
 
 
 $attendance_id = $_GET['id'];
-	
+
 $sql = "SELECT player_id, game_id FROM bobcats_attendance " .
        "WHERE id = '$attendance_id'";
 if (!$result=@mysql_query($sql)) {
@@ -51,12 +51,12 @@ $player_id = $row['player_id'];
 $game_id = $row['game_id'];
 
 
-$sql = "SELECT bobcats_player.name AS player_name, bobcats_game.name AS game_name, " . 
+$sql = "SELECT bobcats_player.name AS player_name, bobcats_game.name AS game_name, " .
 				"bobcats_game.unixtimestamp, bobcats_attendance.status " .
        "FROM bobcats_player, bobcats_game, bobcats_attendance " .
        "WHERE bobcats_player.id = '$player_id' " .
        "AND bobcats_game.id = '$game_id' AND bobcats_attendance.id = '$attendance_id'";
-    
+
 if (!$result=@mysql_query($sql)) {
    	echo '<p>Error accessing game database in main block part two: ' .
          mysql_error() . '</p>';
@@ -70,17 +70,17 @@ $attendance_status = $row['status'];
 
 // the following form will have already checked
 // whatever radio button reflects the current status.
-  
+
 ?>
 
 <form action="index.php" method="get">
-<?php echo "<p>$player_name, will " . 
-      "you be coming to the game on " . 
+<?php echo "<p>$player_name, will " .
+      "you be coming to the game on " .
       "$game_date against $game_name at $game_time?</p>"; ?>
-       
+
 <input type="hidden" name="attendance_id" value="<?php echo $attendance_id; ?>">
 <input type="hidden" name="has_changed" value="1">
-<input name="" type="text" value="" style="display:none"> 
+<input name="" type="text" value="" style="display:none">
 <label><input type="radio" name="attendance_status" value="yes"
        <?php if ($attendance_status == 'yes') echo ' checked'; ?>>Yes<br /></label>
 <label><input type="radio" name="attendance_status" value="no"

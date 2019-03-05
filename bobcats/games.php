@@ -17,7 +17,7 @@
 <p class="link-row"><span class ="style1"><a href="index.php">home</a> | <a href="players.php">manage roster</a> | <a href="games.php">manage games</a></p>
 
 
-<?php 
+<?php
 
 error_reporting(E_ALL);
 ini_set('display_errors', true);
@@ -25,7 +25,7 @@ ini_set('display_errors', true);
 $dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
 if (!$dbcnx) {
 	exit ('<p>Unable to connect to the database server at this time.</p>');
-	
+
 }
 
 if (!@mysql_select_db('496492_turtlemaster')) {
@@ -63,15 +63,15 @@ $this_game_is_in_the_future = FALSE;
 echo ('<div id="pastGames" class="hiding">');
 while ($game = mysql_fetch_array($games)) {
     $this_game_is_in_the_future = ($game['unixtimestamp'] > time());
-    if ($this_is_the_first_past_game AND !$this_game_is_in_the_future) { 
+    if ($this_is_the_first_past_game AND !$this_game_is_in_the_future) {
    		echo '<p><span class="style1"><strong>Past games:</strong></span></p>';
    		$this_is_the_first_past_game = FALSE;  // toggle this_is_the_first_past_game off
    	}
    	else if ($this_is_the_first_future_game AND $this_game_is_in_the_future) {
    		// If there were no past games, then this_is_the_first_past_game never got turned off
-   		if ($this_is_the_first_past_game) { 
+   		if ($this_is_the_first_past_game) {
    			echo '<p><span class="style1"><strong>No past games.</strong></span></p>';
-   			// We don't need to turn off $this_is_the_first_past_game because it'll never be checked again now 
+   			// We don't need to turn off $this_is_the_first_past_game because it'll never be checked again now
    			// that $this_game_is_in_the_future is true.
    		}
    		echo '</div>';
@@ -86,13 +86,13 @@ while ($game = mysql_fetch_array($games)) {
 			"<a href='editgame.php?id=$id'>Edit</a> " .
 			"<a href='deletegame.php?id=$id'>Delete</a></p>";
 }
-// If there were no future games, 
+// If there were no future games,
 // $this_game_is_in_the_future will never have been set to true.  In that case,
 // this if statement needs to be executed so we can close the div tag.
 if (!$this_game_is_in_the_future) {
     echo '</div>';
 }
-    
+
 
 ?>
 
