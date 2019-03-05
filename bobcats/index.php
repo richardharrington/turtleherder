@@ -63,7 +63,7 @@ function sing_plur ($number, $singular_str) {
 }
 
 
-function printplayer($player_id, $game_id) {
+function printplayer($player_id, $game_id, $db) {
   // this prints an individual player line and is called by the
   // printgame() function.  It returns TRUE if the
   // player is attending the game.
@@ -83,12 +83,12 @@ function printplayer($player_id, $game_id) {
            "AND bobcats_attendance.player_id = '$player_id' " .
            "AND bobcats_attendance.game_id = '$game_id'";
 
-    if (!$result=@mysql_query($sql)) {
+    if (!$result=$db->query($sql)) {
       echo '<p>Error accessing game database for printplayer function: ' .
           mysql_error() . '</p>';
     }
 
-    $row = @mysql_fetch_array($result);      //only one row
+    $row = $result->fetch_array();      //only one row
 
     $name = htmlspecialchars($row['name']);
     $status = $row['status'];
@@ -125,7 +125,7 @@ function printplayer($player_id, $game_id) {
 
 
 
-function printgame($game_id) {
+function printgame($game_id, $db) {
   // take the game id and print out a header for the game, followed by a while
   // loop which prints each player (which will be a function).  Each game will
   // follow the same pattern except the last one, so that will be an exception.
@@ -136,7 +136,7 @@ function printgame($game_id) {
 
   $sql = "SELECT unixtimestamp, name, color " .
       "FROM bobcats_game WHERE id='$game_id'";
-    if (!$result=$dbcnx->query($sql)) {
+    if (!$result=$db->query($sql)) {
       echo '<p>Error accessing game database for printgame function: ' .
           mysql_error() . '</p>';
     }
@@ -164,7 +164,7 @@ function printgame($game_id) {
     echo ":</span></p>";
 
     $sql = "SELECT id, gender FROM bobcats_player ORDER BY name";
-    if (!$result=$dbcnx->query($sql)) {
+    if (!$result=$db->query($sql)) {
            echo '<p>Error accessing game database for printgame function inside else loop: ' .
                     mysql_error() . '</p>';
     }
@@ -175,10 +175,10 @@ function printgame($game_id) {
     $females=0;
     $min_players=7;  // max_players and min_females will eventually be user input
     $min_females=2;
-    while ($row = mysql_fetch_array($result)) {
+    while ($row = $result->fetch_array()) {
          $player_id=$row['id'];
          $player_gender=$row['gender'];
-         if (printplayer ($player_id, $game_id)) {  // returns true if they're coming to the game
+         if (printplayer ($player_id, $game_id, $db)) {  // returns true if they're coming to the game
             if ($player_gender == 'f') {
               $females++;
           }
@@ -329,7 +329,7 @@ while ($row = $result->fetch_array()) {
       echo '<p><span class ="style3"><strong>Future games:</strong></span></p>';
       $this_is_the_first_future_game = FALSE;
     }
-    printgame ($row['id']);
+    printgame ($row['id'], $dbcnx);
 }
 // If there were no future games,
 // $this_game_is_in_the_future will never have been set to true.  In that case,
