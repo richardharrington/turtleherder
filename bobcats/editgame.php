@@ -16,23 +16,23 @@
 <?php
 
 function un_escape($str) {
-	if(get_magic_quotes_gpc()) {
-		$str = stripslashes($str);
-	}
-	return($str);
+  if(get_magic_quotes_gpc()) {
+    $str = stripslashes($str);
+  }
+  return($str);
 }
 
 function convert_24hour($hour, $am_or_pm) {
-	if ($am_or_pm == 'am') {
-		$hour_24 = $hour % 12;
-	}
-	// There's probably no other possibility, but
-	// this will help catch errors if the function
-	// doesn't return anything.
-	else if ($am_or_pm == 'pm') {
-		$hour_24 = ($hour % 12) + 12;
-	}
-	return $hour_24;
+  if ($am_or_pm == 'am') {
+    $hour_24 = $hour % 12;
+  }
+  // There's probably no other possibility, but
+  // this will help catch errors if the function
+  // doesn't return anything.
+  else if ($am_or_pm == 'pm') {
+    $hour_24 = ($hour % 12) + 12;
+  }
+  return $hour_24;
 }
 
 error_reporting(E_ALL);
@@ -52,19 +52,19 @@ if (!@mysql_select_db('496492_turtlemaster')) {
 $red = "#CC0000";
 
 if (isset($_REQUEST['id'])) {
-	$updating_existing_game = TRUE;
-	echo "<h1>Edit Game</h1>";
+  $updating_existing_game = TRUE;
+  echo "<h1>Edit Game</h1>";
 }
 else {
-	$updating_existing_game = FALSE;
-	echo "<h1>Add New Game</h1>";
+  $updating_existing_game = FALSE;
+  echo "<h1>Add New Game</h1>";
 }
 
 if (isset($_POST['name'])) {
-	$called_by_self = TRUE;
+  $called_by_self = TRUE;
 }
 else {
-	$called_by_self = FALSE;
+  $called_by_self = FALSE;
 }
 
 ?>
@@ -100,216 +100,216 @@ $data_uploaded = FALSE;
 
 if ($called_by_self) {
 
-	// name
-	$game_name = un_escape($_POST['name']);
+  // name
+  $game_name = un_escape($_POST['name']);
 
-	// color
-	$game_color = un_escape($_POST['color']);
+  // color
+  $game_color = un_escape($_POST['color']);
 
-	// date
+  // date
   $game_month = (int)$_POST['month'];
-	$game_day = (int)$_POST['day'];
-	$game_year = (int)$_POST['year'];
+  $game_day = (int)$_POST['day'];
+  $game_year = (int)$_POST['year'];
 
-	// time
-	$game_hour = (int)$_POST['hour'];
-	$game_minute = (int)$_POST['minute'];
-	$game_ampm = $_POST['ampm'];
+  // time
+  $game_hour = (int)$_POST['hour'];
+  $game_minute = (int)$_POST['minute'];
+  $game_ampm = $_POST['ampm'];
 
-	$game_unixtimestamp = mktime (convert_24hour($game_hour, $game_ampm), $game_minute, 0,   // zero seconds
-			$game_month, $game_day, $game_year);
-	$escaped_game_name = mysql_real_escape_string($game_name);
-	$escaped_game_color = mysql_real_escape_string($game_color);
+  $game_unixtimestamp = mktime (convert_24hour($game_hour, $game_ampm), $game_minute, 0,   // zero seconds
+      $game_month, $game_day, $game_year);
+  $escaped_game_name = mysql_real_escape_string($game_name);
+  $escaped_game_color = mysql_real_escape_string($game_color);
 
-	if ($updating_existing_game) {
-		$id = $_POST['id'];
-		$sql = "UPDATE bobcats_game SET " .
-				"name = '$escaped_game_name', " .
-				"color = '$escaped_game_color', " .
-				"unixtimestamp = '$game_unixtimestamp' " .
-				"WHERE id='$id'";
-		if (@mysql_query($sql)) {
-			echo '<p>Game updated</p>';
-		}
-		else {
-			echo '<p>Error updating game: ' . mysql_error() . '</p>';
-		}
-	}
-	else {
-		$sql = "INSERT INTO bobcats_game SET " .
-				"name = '$escaped_game_name', " .
-				"color = '$escaped_game_color', " .
-				"unixtimestamp = '$game_unixtimestamp'";
-		if (@mysql_query($sql)) {
-			echo '<p>Game added</p>';
-		}
-		else {
-			echo '<p>Error adding game: ' . mysql_error() . '</p>';
-		}
-		$game_id = mysql_insert_id();
+  if ($updating_existing_game) {
+    $id = $_POST['id'];
+    $sql = "UPDATE bobcats_game SET " .
+        "name = '$escaped_game_name', " .
+        "color = '$escaped_game_color', " .
+        "unixtimestamp = '$game_unixtimestamp' " .
+        "WHERE id='$id'";
+    if (@mysql_query($sql)) {
+      echo '<p>Game updated</p>';
+    }
+    else {
+      echo '<p>Error updating game: ' . mysql_error() . '</p>';
+    }
+  }
+  else {
+    $sql = "INSERT INTO bobcats_game SET " .
+        "name = '$escaped_game_name', " .
+        "color = '$escaped_game_color', " .
+        "unixtimestamp = '$game_unixtimestamp'";
+    if (@mysql_query($sql)) {
+      echo '<p>Game added</p>';
+    }
+    else {
+      echo '<p>Error adding game: ' . mysql_error() . '</p>';
+    }
+    $game_id = mysql_insert_id();
 
-		$sql = "INSERT INTO bobcats_attendance (game_id, player_id) " .
-				"SELECT '$game_id', id FROM bobcats_player";
-		if (@mysql_query($sql)) {
-				echo '<p>Players assigned to new game.</p>';
-		} else {
-			echo '<p>Error assigning players to new game: ' .
-				mysql_error() . '</p>';
-		}
-	}
-	$data_uploaded = TRUE;
+    $sql = "INSERT INTO bobcats_attendance (game_id, player_id) " .
+        "SELECT '$game_id', id FROM bobcats_player";
+    if (@mysql_query($sql)) {
+        echo '<p>Players assigned to new game.</p>';
+    } else {
+      echo '<p>Error assigning players to new game: ' .
+        mysql_error() . '</p>';
+    }
+  }
+  $data_uploaded = TRUE;
 
-	?>
-	<p><a href="<?php echo $_SERVER['PHP_SELF']; ?>">Add another game</a></p>
-	<p><a href="games.php">Return to games management page</a></p>
-	<?php
+  ?>
+  <p><a href="<?php echo $_SERVER['PHP_SELF']; ?>">Add another game</a></p>
+  <p><a href="games.php">Return to games management page</a></p>
+  <?php
 }
 
 else if ($updating_existing_game) {
-	$id = $_REQUEST['id'];
-	$game = @mysql_query("SELECT name, color, unixtimestamp FROM bobcats_game WHERE id='$id'");
-	if (!$game) {
-		exit('<p>Error retrieving game from database!<br />' .
-				'Error: ' . mysql_error() . '</p>');
-	}
-	$row = mysql_fetch_array($game);
-	$game_name = $row['name'];
-	$game_color = $row['color'];
-	$game_month = (int)date('n', $row['unixtimestamp']);
-	$game_day = (int)date('j', $row['unixtimestamp']);
-	$game_year = (int)date('Y', $row['unixtimestamp']);
-	$game_hour = (int)date('g', $row['unixtimestamp']);
-	$game_minute = (int)date('i', $row['unixtimestamp']);
-	$game_ampm = date('a', $row['unixtimestamp']);
+  $id = $_REQUEST['id'];
+  $game = @mysql_query("SELECT name, color, unixtimestamp FROM bobcats_game WHERE id='$id'");
+  if (!$game) {
+    exit('<p>Error retrieving game from database!<br />' .
+        'Error: ' . mysql_error() . '</p>');
+  }
+  $row = mysql_fetch_array($game);
+  $game_name = $row['name'];
+  $game_color = $row['color'];
+  $game_month = (int)date('n', $row['unixtimestamp']);
+  $game_day = (int)date('j', $row['unixtimestamp']);
+  $game_year = (int)date('Y', $row['unixtimestamp']);
+  $game_hour = (int)date('g', $row['unixtimestamp']);
+  $game_minute = (int)date('i', $row['unixtimestamp']);
+  $game_ampm = date('a', $row['unixtimestamp']);
 }
 
 if (!$data_uploaded) {
 
-	?>
+  ?>
 
-	<form name="form1" action="<?php echo $_SERVER['PHP_SELF']; ?>" method="post">
-	<p><?php if ($updating_existing_game) echo "Update game info:"; else echo "Enter new game:"; ?></p>
+  <form name="form1" action="<?php echo $_SERVER['PHP_SELF']; ?>" method="post">
+  <p><?php if ($updating_existing_game) echo "Update game info:"; else echo "Enter new game:"; ?></p>
 
   <p class="hiding" id="nameError"><span class="error">Please type in a name for the opposing team.</span></p><br />
 
-	<label>Opposing team name: <input type="text" name="name"
-			value="<?php echo htmlspecialchars($game_name); ?>" /></label><br /><br />
-	<label>Opposing team color (optional): <input type="text" name="color"
-			value="<?php echo htmlspecialchars($game_color); ?>" /></label><br /><br />
+  <label>Opposing team name: <input type="text" name="name"
+      value="<?php echo htmlspecialchars($game_name); ?>" /></label><br /><br />
+  <label>Opposing team color (optional): <input type="text" name="color"
+      value="<?php echo htmlspecialchars($game_color); ?>" /></label><br /><br />
 
-	<p class="hiding" id="dateError"><span class="error">Please select a valid date.</span></p><br />
+  <p class="hiding" id="dateError"><span class="error">Please select a valid date.</span></p><br />
 
-	<strong>Date:</strong>&nbsp;&nbsp;month
-	<label><select name="month">
-		<?php
+  <strong>Date:</strong>&nbsp;&nbsp;month
+  <label><select name="month">
+    <?php
 
-		if ($game_month == 'blank') {
-			echo '<option value="blank"></option><br />'; // the first blank option, the default
-		}
-		for ($month = 1; $month <= 12; $month++) {
-			echo "<option value=\"$month\"";
-			if ($month === $game_month) {   //  if $month equals the month from the database or the input
-				echo " selected";
-			}
-			$month_for_display = date('M', mktime(0,0,0,$month));
-			echo ">$month_for_display</option><br />";
-		}
-		?>
-	</select></label>&nbsp;&nbsp;day
-	<label><select name="day">
-		<?php
-		if ($game_day == 'blank') {
-			echo '<option value="blank"></option><br />'; // the first blank option, the default
-		}
-		for ($day = 1; $day <= 31; $day++) {
-			echo "<option value=\"$day\"";
-			if ($day === $game_day) {   //  if $day equals the day from the database or the input
-				echo " selected";
-			}
-			echo ">$day</option><br />";
-		}
-		?>
-	</select></label>&nbsp;&nbsp;year
-	<label><select name="year">
-		<?php
-		if ($game_year == 'blank') {
-			echo '<option value="blank"></option><br />'; // the first blank option, the default
-		}
-		$current_year = date('Y', time());
-		for ($year = $current_year; $year <= $current_year+2; $year++) {
-			echo "<option value=\"$year\"";
-			if ($year === $game_year) {   //  if $day equals the day from the database or the input
-				echo " selected";
-			}
-			echo ">$year</option><br />";
-		}
-		?>
-	</select></label>
-	<br />
-	<br />
+    if ($game_month == 'blank') {
+      echo '<option value="blank"></option><br />'; // the first blank option, the default
+    }
+    for ($month = 1; $month <= 12; $month++) {
+      echo "<option value=\"$month\"";
+      if ($month === $game_month) {   //  if $month equals the month from the database or the input
+        echo " selected";
+      }
+      $month_for_display = date('M', mktime(0,0,0,$month));
+      echo ">$month_for_display</option><br />";
+    }
+    ?>
+  </select></label>&nbsp;&nbsp;day
+  <label><select name="day">
+    <?php
+    if ($game_day == 'blank') {
+      echo '<option value="blank"></option><br />'; // the first blank option, the default
+    }
+    for ($day = 1; $day <= 31; $day++) {
+      echo "<option value=\"$day\"";
+      if ($day === $game_day) {   //  if $day equals the day from the database or the input
+        echo " selected";
+      }
+      echo ">$day</option><br />";
+    }
+    ?>
+  </select></label>&nbsp;&nbsp;year
+  <label><select name="year">
+    <?php
+    if ($game_year == 'blank') {
+      echo '<option value="blank"></option><br />'; // the first blank option, the default
+    }
+    $current_year = date('Y', time());
+    for ($year = $current_year; $year <= $current_year+2; $year++) {
+      echo "<option value=\"$year\"";
+      if ($year === $game_year) {   //  if $day equals the day from the database or the input
+        echo " selected";
+      }
+      echo ">$year</option><br />";
+    }
+    ?>
+  </select></label>
+  <br />
+  <br />
 
-	<p class="hiding" id="timeError"><span class="error">Please select a time (make sure to check am or pm, too).</span></p><br />
+  <p class="hiding" id="timeError"><span class="error">Please select a time (make sure to check am or pm, too).</span></p><br />
 
-	<strong>Time:</strong>&nbsp;&nbsp;hour
-	<label><select name="hour">
-		<?php
+  <strong>Time:</strong>&nbsp;&nbsp;hour
+  <label><select name="hour">
+    <?php
 
-		if ($game_hour == 'blank') {
-			echo '<option value="blank"></option><br />'; // the first blank option, the default
-		}
-		for ($hour = 1; $hour <= 12; $hour++) {
-			echo "<option value=\"$hour\"";
-			if ($hour === $game_hour) {   //  if $month equals the month from the database or the input
-				echo " selected";
-			}
-			echo ">$hour</option><br />";
-		}
-		?>
-	</select></label>&nbsp;&nbsp;minute
-	<label><select name="minute">
-		<?php
-		if ($game_minute == 'blank') {
-			echo '<option value="blank"></option><br />'; // the first blank option, the default
-		}
-		for ($minute = 0; $minute <= 55; $minute = $minute + 5) {
-			echo "<option value=\"$minute\"";
-			if ($minute === $game_minute) {   //  if $day equals the day from the database or the input
-				echo " selected";
-			}
-			// kludgy way of adding leading zero:
-			$minute_for_display = date('i', mktime(0,$minute));
-			echo ">$minute_for_display</option><br />";
-		}
-		?>
-	</select></label>&nbsp;
-	<label><select name="ampm" size="2">
-		<?php
-		echo '<option value="am"';
-		if ($game_ampm == 'am') {
-			echo " selected";
-		}
-		echo ">am</option><br />";
-		echo '<option value="pm"';
-		if ($game_ampm == 'pm') {
-			echo " selected";
-		}
-		echo ">pm</option><br />";
-		?>
-	</select></label><br /><br />
+    if ($game_hour == 'blank') {
+      echo '<option value="blank"></option><br />'; // the first blank option, the default
+    }
+    for ($hour = 1; $hour <= 12; $hour++) {
+      echo "<option value=\"$hour\"";
+      if ($hour === $game_hour) {   //  if $month equals the month from the database or the input
+        echo " selected";
+      }
+      echo ">$hour</option><br />";
+    }
+    ?>
+  </select></label>&nbsp;&nbsp;minute
+  <label><select name="minute">
+    <?php
+    if ($game_minute == 'blank') {
+      echo '<option value="blank"></option><br />'; // the first blank option, the default
+    }
+    for ($minute = 0; $minute <= 55; $minute = $minute + 5) {
+      echo "<option value=\"$minute\"";
+      if ($minute === $game_minute) {   //  if $day equals the day from the database or the input
+        echo " selected";
+      }
+      // kludgy way of adding leading zero:
+      $minute_for_display = date('i', mktime(0,$minute));
+      echo ">$minute_for_display</option><br />";
+    }
+    ?>
+  </select></label>&nbsp;
+  <label><select name="ampm" size="2">
+    <?php
+    echo '<option value="am"';
+    if ($game_ampm == 'am') {
+      echo " selected";
+    }
+    echo ">am</option><br />";
+    echo '<option value="pm"';
+    if ($game_ampm == 'pm') {
+      echo " selected";
+    }
+    echo ">pm</option><br />";
+    ?>
+  </select></label><br /><br />
 
-	<?php
-	if ($updating_existing_game) {
-		?>
-		<label><input type="hidden" name="id" value="<?php echo $_REQUEST['id']; ?>" /></label>
-		<?php
-	}
-	?>
+  <?php
+  if ($updating_existing_game) {
+    ?>
+    <label><input type="hidden" name="id" value="<?php echo $_REQUEST['id']; ?>" /></label>
+    <?php
+  }
+  ?>
 
-	<input type="submit" name="submit" value="SUBMIT" onClick="return validateGame(document.form1)" />
+  <input type="submit" name="submit" value="SUBMIT" onClick="return validateGame(document.form1)" />
 
 
 
-	</form>
+  </form>
 
 <?php
 

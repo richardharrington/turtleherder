@@ -23,26 +23,26 @@ ini_set('display_errors', true);
 
 $dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
 if (!$dbcnx) {
-	exit ('<p>Unable to connect to the database server at this time.</p>');
+  exit ('<p>Unable to connect to the database server at this time.</p>');
 
 }
 
 if (!@mysql_select_db('496492_turtlemaster')) {
-	exit('<p>Unable to locate the database at this time.</p>');
+  exit('<p>Unable to locate the database at this time.</p>');
 }
 
 $players = @mysql_query('SELECT id, name FROM bobcats_player ORDER BY name ASC');
 if (!$players) {
-	exit('<p>Error retrieving players from database!<br />' .
-		'Error: ' . mysql_error() . '</p>');
+  exit('<p>Error retrieving players from database!<br />' .
+    'Error: ' . mysql_error() . '</p>');
 }
 
 while ($player = mysql_fetch_array($players)) {
-	$id = $player['id'];
-	$name = htmlspecialchars($player['name']);
-	echo "<p>$name " .
-		"<a href='editplayer.php?id=$id'>Edit</a> " .
-		"<a href='deleteplayer.php?id=$id'>Delete</a></p>";
+  $id = $player['id'];
+  $name = htmlspecialchars($player['name']);
+  echo "<p>$name " .
+    "<a href='editplayer.php?id=$id'>Edit</a> " .
+    "<a href='deleteplayer.php?id=$id'>Delete</a></p>";
 }
 
 ?>

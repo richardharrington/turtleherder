@@ -43,8 +43,8 @@ $attendance_id = $_GET['id'];
 $sql = "SELECT player_id, game_id FROM bobcats_attendance " .
        "WHERE id = '$attendance_id'";
 if (!$result=@mysql_query($sql)) {
-	echo '<p>Error accessing game database in main block part one: ' .
-          	  mysql_error() . '</p>';
+  echo '<p>Error accessing game database in main block part one: ' .
+              mysql_error() . '</p>';
 }
 $row = mysql_fetch_array($result);   // only one row
 $player_id = $row['player_id'];
@@ -52,13 +52,13 @@ $game_id = $row['game_id'];
 
 
 $sql = "SELECT bobcats_player.name AS player_name, bobcats_game.name AS game_name, " .
-				"bobcats_game.unixtimestamp, bobcats_attendance.status " .
+        "bobcats_game.unixtimestamp, bobcats_attendance.status " .
        "FROM bobcats_player, bobcats_game, bobcats_attendance " .
        "WHERE bobcats_player.id = '$player_id' " .
        "AND bobcats_game.id = '$game_id' AND bobcats_attendance.id = '$attendance_id'";
 
 if (!$result=@mysql_query($sql)) {
-   	echo '<p>Error accessing game database in main block part two: ' .
+    echo '<p>Error accessing game database in main block part two: ' .
          mysql_error() . '</p>';
 }
 $row = mysql_fetch_array($result);  // only one row
