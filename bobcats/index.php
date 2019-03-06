@@ -84,8 +84,7 @@ function printplayer($player_id, $game_id, $db) {
            "AND bobcats_attendance.game_id = '$game_id'";
 
     if (!$result=$db->query($sql)) {
-      echo '<p>Error accessing game database for printplayer function: ' .
-          mysql_error() . '</p>';
+      echo '<p>Error accessing game database for printplayer function</p>';
     }
 
     $row = $result->fetch_array();      //only one row
@@ -137,8 +136,7 @@ function printgame($game_id, $db) {
   $sql = "SELECT unixtimestamp, name, color " .
       "FROM bobcats_game WHERE id='$game_id'";
     if (!$result=$db->query($sql)) {
-      echo '<p>Error accessing game database for printgame function: ' .
-          mysql_error() . '</p>';
+      echo '<p>Error accessing game database for printgame function</p>';
     }
 
     // Display header for game
@@ -165,8 +163,7 @@ function printgame($game_id, $db) {
 
     $sql = "SELECT id, gender FROM bobcats_player ORDER BY name";
     if (!$result=$db->query($sql)) {
-           echo '<p>Error accessing game database for printgame function inside else loop: ' .
-                    mysql_error() . '</p>';
+           echo '<p>Error accessing game database for printgame function inside else loop</p>';
     }
 
         // Print each player's status.
@@ -259,13 +256,13 @@ function printgame($game_id, $db) {
 
 // main block
 
-$dbcnx = new mysqli(
+$db_conn = new mysqli(
   'mysql50-36.wc1.dfw1.stabletransit.com',
   '496492_th',
   '*password*',
   '496492_turtlemaster'
 );
-if (!$dbcnx) {
+if (!$db_conn) {
   exit('<p>Unable to connect to the ' .
       'database server at this time.</p>');
 }
@@ -278,12 +275,11 @@ if (isset($_GET['has_changed'])) {
   $sql = "UPDATE bobcats_attendance SET " .
          "status='$attendance_status' " .
          "WHERE id='$attendance_id'";
-  if ($dbcnx->query($sql)) {
+  if ($db_conn->query($sql)) {
 // I commented out this line because it's kind of stupid and just gets in the way and confuses the user.
 //    echo '<p>Your status has been updated.</p>';
   } else {
-    echo '<p>Error updating status: ' .
-        mysql_error() . '</p>';
+    echo '<p>Error updating status</p>';
   }
 }
 
@@ -301,7 +297,7 @@ if (isset($_GET['has_changed'])) {
 
 
 // Display each game (except ones in the past if show_past_games is false.)
-$result = $dbcnx->query('SELECT id, unixtimestamp FROM bobcats_game ORDER BY unixtimestamp ASC');
+$result = $db_conn->query('SELECT id, unixtimestamp FROM bobcats_game ORDER BY unixtimestamp ASC');
 if (!$result) {
   exit('<p>Error performing query</p>');
 }
@@ -329,7 +325,7 @@ while ($row = $result->fetch_array()) {
       echo '<p><span class ="style3"><strong>Future games:</strong></span></p>';
       $this_is_the_first_future_game = FALSE;
     }
-    printgame ($row['id'], $dbcnx);
+    printgame ($row['id'], $db_conn);
 }
 // If there were no future games,
 // $this_game_is_in_the_future will never have been set to true.  In that case,

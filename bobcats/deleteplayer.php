@@ -23,15 +23,15 @@ ini_set('display_errors', true);
 
 
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
-if (!$dbcnx) {
+$db = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  '*password*',
+  '496492_turtlemaster'
+);
+if (!$db) {
   exit('<p>Unable to connect to the ' .
       'database server at this time.</p>');
-}
- // Select the badgers database
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the master ' .
-      'database at this time.</p>');
 }
 
 
@@ -45,15 +45,15 @@ if (isset($_GET['confirm_delete'])) {
 
   //  Delete all attendance statuses belonging to the player
   //  along with the player his/herself
-  $ok1 = @mysql_query("DELETE FROM bobcats_attendance WHERE player_id='$id'");
-  $ok2 = @mysql_query("DELETE FROM bobcats_player WHERE id='$id'");
+  $ok1 = $db->query("DELETE FROM bobcats_attendance WHERE player_id='$id'");
+  $ok2 = $db->query("DELETE FROM bobcats_player WHERE id='$id'");
 
 
   if ($ok1 AND $ok2) {
     echo '<p>Player deleted successfully!</p>';
   } else {
     echo '<p>Error deleting player from database!<br />' .
-        'Error: ' . mysql_error() . '</p>';
+        'Error</p>';
   }
 
   echo '<p><a href="players.php">Return to roster management page</a></p>';
@@ -62,11 +62,10 @@ if (isset($_GET['confirm_delete'])) {
 else {
   $sql = "SELECT name FROM bobcats_player WHERE id='$id'";
 
-  if (!$result=@mysql_query($sql)) {
-      echo '<p>Error accessing database: ' .
-           mysql_error() . '</p>';
+  if (!$result=$db->query($sql)) {
+      echo '<p>Error accessing database</p>';
   }
-  $row = mysql_fetch_array($result);  // only one row
+  $row = $result->fetch_array();  // only one row
   $name = htmlspecialchars($row['name']);
 
   ?>

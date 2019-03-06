@@ -22,14 +22,15 @@
 error_reporting(E_ALL);
 ini_set('display_errors', true);
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
-if (!$dbcnx) {
-  exit ('<p>Unable to connect to the database server at this time.</p>');
-
-}
-
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the database at this time.</p>');
+$db = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  '*password*',
+  '496492_turtlemaster'
+);
+if (!$db) {
+  exit('<p>Unable to connect to the ' .
+      'database server at this time.</p>');
 }
 
 // Check to see whether the user has clicked on the "show past games" or "hide past games"
@@ -45,11 +46,11 @@ if (!@mysql_select_db('496492_turtlemaster')) {
 
 // Display each game (except ones in the past if show_past_games is false.)
 
-$games = @mysql_query('SELECT id, name, unixtimestamp ' .
+$games = $db->query('SELECT id, name, unixtimestamp ' .
             'FROM bobcats_game ORDER BY unixtimestamp ASC');
 if (!$games) {
   exit('<p>Error retrieving games from database!<br />' .
-    'Error: ' . mysql_error() . '</p>');
+    'Error</p>');
 }
 
 
@@ -61,7 +62,7 @@ $this_is_the_first_past_game = TRUE;
 $this_is_the_first_future_game = TRUE;
 $this_game_is_in_the_future = FALSE;
 echo ('<div id="pastGames" class="hiding">');
-while ($game = mysql_fetch_array($games)) {
+while ($game = $db->fetch_array($games)) {
     $this_game_is_in_the_future = ($game['unixtimestamp'] > time());
     if ($this_is_the_first_past_game AND !$this_game_is_in_the_future) {
       echo '<p><span class="style1"><strong>Past games:</strong></span></p>';

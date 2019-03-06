@@ -26,15 +26,15 @@ ini_set('display_errors', true);
 
 // main block
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
-if (!$dbcnx) {
+$db = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  '*password*',
+  '496492_turtlemaster'
+);
+if (!$db) {
   exit('<p>Unable to connect to the ' .
       'database server at this time.</p>');
-}
- // Select the badgers database
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the master ' .
-      'database at this time.</p>');
 }
 
 
@@ -42,9 +42,8 @@ $attendance_id = $_GET['id'];
 
 $sql = "SELECT player_id, game_id FROM bobcats_attendance " .
        "WHERE id = '$attendance_id'";
-if (!$result=@mysql_query($sql)) {
-  echo '<p>Error accessing game database in main block part one: ' .
-              mysql_error() . '</p>';
+if (!$result=$db->query($sql)) {
+  echo '<p>Error accessing game database in main block part one</p>';
 }
 $row = mysql_fetch_array($result);   // only one row
 $player_id = $row['player_id'];
@@ -57,11 +56,10 @@ $sql = "SELECT bobcats_player.name AS player_name, bobcats_game.name AS game_nam
        "WHERE bobcats_player.id = '$player_id' " .
        "AND bobcats_game.id = '$game_id' AND bobcats_attendance.id = '$attendance_id'";
 
-if (!$result=@mysql_query($sql)) {
-    echo '<p>Error accessing game database in main block part two: ' .
-         mysql_error() . '</p>';
+if (!$result=$db->query($sql)) {
+    echo '<p>Error accessing game database in main block part two</p>';
 }
-$row = mysql_fetch_array($result);  // only one row
+$row = $result->fetch_array();  // only one row
 $player_name = htmlspecialchars($row['player_name']);
 $game_date = date('l, F j, Y', $row['unixtimestamp']);    // e.g. Friday, January 27, 2010
 $game_time = date('g:i a', $row['unixtimestamp']);  // e.g. 8:35 pm

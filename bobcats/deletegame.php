@@ -23,15 +23,15 @@ ini_set('display_errors', true);
 
 
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
-if (!$dbcnx) {
+$db = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  '*password*',
+  '496492_turtlemaster'
+);
+if (!$db) {
   exit('<p>Unable to connect to the ' .
       'database server at this time.</p>');
-}
- // Select the badgers database
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the master ' .
-      'database at this time.</p>');
 }
 
 
@@ -45,15 +45,15 @@ if (isset($_GET['confirm_delete'])) {
 
   //  Delete all attendance statuses relating to the game
   //  along with the game itself.
-  $ok1 = @mysql_query("DELETE FROM bobcats_attendance WHERE game_id='$id'");
-  $ok2 = @mysql_query("DELETE FROM bobcats_game WHERE id='$id'");
+  $ok1 = $db->query("DELETE FROM bobcats_attendance WHERE game_id='$id'");
+  $ok2 = $db->query("DELETE FROM bobcats_game WHERE id='$id'");
 
 
   if ($ok1 AND $ok2) {
     echo '<p>Game deleted successfully!</p>';
   } else {
     echo '<p>Error deleting game from database!<br />' .
-        'Error: ' . mysql_error() . '</p>';
+        'Error</p>';
   }
 
   echo '<p><a href="games.php">Return to games management page</a></p>';
@@ -62,11 +62,10 @@ if (isset($_GET['confirm_delete'])) {
 else {
   $sql = "SELECT name, unixtimestamp FROM bobcats_game WHERE id='$id'";
 
-  if (!$result=@mysql_query($sql)) {
-      echo '<p>Error accessing database: ' .
-           mysql_error() . '</p>';
+  if (!$result=$db->query($sql)) {
+      echo '<p>Error accessing database</p>';
   }
-  $row = mysql_fetch_array($result);  // only one row
+  $row = $result->fetch_array();  // only one row
   $game_name = htmlspecialchars($row['name']);
   $game_date = date('l, F j', $row['unixtimestamp']);   //  e.g. Friday, January 27
   $game_time = date('g:i a', $row['unixtimestamp']);   //  e.g. 8:45 pm

@@ -38,15 +38,15 @@ function convert_24hour($hour, $am_or_pm) {
 error_reporting(E_ALL);
 ini_set('display_errors', true);
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
-if (!$dbcnx) {
+$db = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  '*password*',
+  '496492_turtlemaster'
+);
+if (!$db) {
   exit('<p>Unable to connect to the ' .
       'database server at this time.</p>');
-}
- // Select the badgers database
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the master ' .
-      'database at this time.</p>');
 }
 
 $red = "#CC0000";
@@ -128,11 +128,11 @@ if ($called_by_self) {
         "color = '$escaped_game_color', " .
         "unixtimestamp = '$game_unixtimestamp' " .
         "WHERE id='$id'";
-    if (@mysql_query($sql)) {
+    if ($db->query($sql)) {
       echo '<p>Game updated</p>';
     }
     else {
-      echo '<p>Error updating game: ' . mysql_error() . '</p>';
+      echo '<p>Error updating game</p>';
     }
   }
   else {
@@ -140,21 +140,20 @@ if ($called_by_self) {
         "name = '$escaped_game_name', " .
         "color = '$escaped_game_color', " .
         "unixtimestamp = '$game_unixtimestamp'";
-    if (@mysql_query($sql)) {
+    if ($db->query($sql)) {
       echo '<p>Game added</p>';
     }
     else {
-      echo '<p>Error adding game: ' . mysql_error() . '</p>';
+      echo '<p>Error adding game</p>';
     }
-    $game_id = mysql_insert_id();
+    $game_id = $db->insert_id();
 
     $sql = "INSERT INTO bobcats_attendance (game_id, player_id) " .
         "SELECT '$game_id', id FROM bobcats_player";
-    if (@mysql_query($sql)) {
+    if ($db->query($sql)) {
         echo '<p>Players assigned to new game.</p>';
     } else {
-      echo '<p>Error assigning players to new game: ' .
-        mysql_error() . '</p>';
+      echo '<p>Error assigning players to new game</p>';
     }
   }
   $data_uploaded = TRUE;
@@ -167,12 +166,12 @@ if ($called_by_self) {
 
 else if ($updating_existing_game) {
   $id = $_REQUEST['id'];
-  $game = @mysql_query("SELECT name, color, unixtimestamp FROM bobcats_game WHERE id='$id'");
+  $game = $db->query("SELECT name, color, unixtimestamp FROM bobcats_game WHERE id='$id'");
   if (!$game) {
     exit('<p>Error retrieving game from database!<br />' .
-        'Error: ' . mysql_error() . '</p>');
+        'Error</p>');
   }
-  $row = mysql_fetch_array($game);
+  $row = $db->fetch_array($game);
   $game_name = $row['name'];
   $game_color = $row['color'];
   $game_month = (int)date('n', $row['unixtimestamp']);

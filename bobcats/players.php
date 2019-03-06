@@ -21,23 +21,24 @@
 error_reporting(E_ALL);
 ini_set('display_errors', true);
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
-if (!$dbcnx) {
-  exit ('<p>Unable to connect to the database server at this time.</p>');
-
+$db = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  '*password*',
+  '496492_turtlemaster'
+);
+if (!$db) {
+  exit('<p>Unable to connect to the ' .
+      'database server at this time.</p>');
 }
 
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the database at this time.</p>');
-}
-
-$players = @mysql_query('SELECT id, name FROM bobcats_player ORDER BY name ASC');
+$players = $db->query('SELECT id, name FROM bobcats_player ORDER BY name ASC');
 if (!$players) {
   exit('<p>Error retrieving players from database!<br />' .
-    'Error: ' . mysql_error() . '</p>');
+    'Error</p>');
 }
 
-while ($player = mysql_fetch_array($players)) {
+while ($player = $db->fetch_array($players)) {
   $id = $player['id'];
   $name = htmlspecialchars($player['name']);
   echo "<p>$name " .

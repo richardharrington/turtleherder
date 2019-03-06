@@ -18,15 +18,15 @@ error_reporting(E_ALL);
 ini_set('display_errors', true);
 
 
-$dbcnx = @mysql_connect('mysql50-36.wc1.dfw1.stabletransit.com', '496492_th', 'Krul6666');
-if (!$dbcnx) {
+$db = new mysqli(
+  'mysql50-36.wc1.dfw1.stabletransit.com',
+  '496492_th',
+  '*password*',
+  '496492_turtlemaster'
+);
+if (!$db) {
   exit('<p>Unable to connect to the ' .
       'database server at this time.</p>');
-}
- // Select the badgers database
-if (!@mysql_select_db('496492_turtlemaster')) {
-  exit('<p>Unable to locate the master ' .
-      'database at this time.</p>');
 }
 
 
@@ -83,11 +83,11 @@ if ($called_by_self) {
         "name = '$name', " .
         "gender = '$gender' " .
         "WHERE id='$id'";
-    if (@mysql_query($sql)) {
+    if ($db->query($sql)) {
       echo '<p>Player updated</p>';
     }
     else {
-      echo '<p>Error updating player: ' . mysql_error() . '</p>';
+      echo '<p>Error updating player</p>';
     }
   }
 
@@ -96,21 +96,20 @@ if ($called_by_self) {
     $sql = "INSERT INTO bobcats_player SET " .
         "name = '$name', " .
         "gender = '$gender'";
-    if (@mysql_query($sql)) {
+    if ($db->query($sql)) {
       echo '<p>Player added</p>';
     }
     else {
-      echo '<p>Error adding player: ' . mysql_error() . '</p>';
+      echo '<p>Error adding player</p>';
     }
     $player_id = mysql_insert_id();
 
     $sql = "INSERT INTO bobcats_attendance (player_id, game_id) " .
         "SELECT '$player_id', id FROM bobcats_game";
-    if (@mysql_query($sql)) {
+    if ($db->query($sql)) {
         echo '<p>Attendance status for player set up for each game</p>';
     } else {
-      echo '<p>Error setting up attendance status: ' .
-        mysql_error() . '</p>';
+      echo '<p>Error setting up attendance status</p>';
     }
   }
   $data_uploaded = TRUE;
@@ -125,12 +124,12 @@ if ($called_by_self) {
 // Allow the user to enter a new player, or edit the player
 else if ($updating_existing_player) {
   $id = $_REQUEST['id'];
-  $player = @mysql_query("SELECT name, gender FROM bobcats_player WHERE id='$id'");
+  $player = $db->query("SELECT name, gender FROM bobcats_player WHERE id='$id'");
   if (!$player) {
     exit('<p>Error retrieving player from database!<br />' .
-        'Error: ' . mysql_error() . '</p>');
+        'Error</p>');
   }
-  $row = mysql_fetch_array($player);
+  $row = $db->fetch_array($player);
   $name = htmlspecialchars($row['name']);
   $gender = $row['gender'];
 }
