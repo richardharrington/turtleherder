@@ -38,7 +38,7 @@ if (!$players) {
     'Error</p>');
 }
 
-while ($player = $result->fetch_array($players)) {
+while ($player = $players->fetch_array()) {
   $id = $player['id'];
   $name = htmlspecialchars($player['name']);
   echo "<p>$name " .

@@ -45,7 +45,7 @@ $sql = "SELECT player_id, game_id FROM bobcats_attendance " .
 if (!$result=$db->query($sql)) {
   echo '<p>Error accessing game database in main block part one</p>';
 }
-$row = mysql_fetch_array($result);   // only one row
+$row = $result->fetch_array();   // only one row
 $player_id = $row['player_id'];
 $game_id = $row['game_id'];
 

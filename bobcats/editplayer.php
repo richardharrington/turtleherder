@@ -102,7 +102,7 @@ if ($called_by_self) {
     else {
       echo '<p>Error adding player</p>';
     }
-    $player_id = mysql_insert_id();
+    $player_id = $db->insert_id;
 
     $sql = "INSERT INTO bobcats_attendance (player_id, game_id) " .
         "SELECT '$player_id', id FROM bobcats_game";
@@ -129,7 +129,7 @@ else if ($updating_existing_player) {
     exit('<p>Error retrieving player from database!<br />' .
         'Error</p>');
   }
-  $row = $result->fetch_array($player);
+  $row = $player->fetch_array();
   $name = htmlspecialchars($row['name']);
   $gender = $row['gender'];
 }

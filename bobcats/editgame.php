@@ -118,8 +118,8 @@ if ($called_by_self) {
 
   $game_unixtimestamp = mktime (convert_24hour($game_hour, $game_ampm), $game_minute, 0,   // zero seconds
       $game_month, $game_day, $game_year);
-  $escaped_game_name = mysql_real_escape_string($game_name);
-  $escaped_game_color = mysql_real_escape_string($game_color);
+  $escaped_game_name = $db->real_escape_string($game_name);
+  $escaped_game_color = $db->real_escape_string($game_color);
 
   if ($updating_existing_game) {
     $id = $_POST['id'];
@@ -146,7 +146,7 @@ if ($called_by_self) {
     else {
       echo '<p>Error adding game</p>';
     }
-    $game_id = $db->insert_id();
+    $game_id = $db->insert_id;
 
     $sql = "INSERT INTO bobcats_attendance (game_id, player_id) " .
         "SELECT '$game_id', id FROM bobcats_player";
@@ -171,7 +171,7 @@ else if ($updating_existing_game) {
     exit('<p>Error retrieving game from database!<br />' .
         'Error</p>');
   }
-  $row = $result->fetch_array($game);
+  $row = $game->fetch_array();
   $game_name = $row['name'];
   $game_color = $row['color'];
   $game_month = (int)date('n', $row['unixtimestamp']);
