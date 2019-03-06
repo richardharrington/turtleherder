@@ -129,7 +129,7 @@ else if ($updating_existing_player) {
     exit('<p>Error retrieving player from database!<br />' .
         'Error</p>');
   }
-  $row = $db->fetch_array($player);
+  $row = $result->fetch_array($player);
   $name = htmlspecialchars($row['name']);
   $gender = $row['gender'];
 }

@@ -171,7 +171,7 @@ else if ($updating_existing_game) {
     exit('<p>Error retrieving game from database!<br />' .
         'Error</p>');
   }
-  $row = $db->fetch_array($game);
+  $row = $result->fetch_array($game);
   $game_name = $row['name'];
   $game_color = $row['color'];
   $game_month = (int)date('n', $row['unixtimestamp']);

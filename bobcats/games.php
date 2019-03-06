@@ -62,7 +62,7 @@ $this_is_the_first_past_game = TRUE;
 $this_is_the_first_future_game = TRUE;
 $this_game_is_in_the_future = FALSE;
 echo ('<div id="pastGames" class="hiding">');
-while ($game = $db->fetch_array($games)) {
+while ($game = $result->fetch_array($games)) {
     $this_game_is_in_the_future = ($game['unixtimestamp'] > time());
     if ($this_is_the_first_past_game AND !$this_game_is_in_the_future) {
       echo '<p><span class="style1"><strong>Past games:</strong></span></p>';
