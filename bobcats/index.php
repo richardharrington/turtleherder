@@ -262,7 +262,7 @@ function printgame($game_id, $db) {
 $dbcnx = new mysqli(
   'mysql50-36.wc1.dfw1.stabletransit.com',
   '496492_th',
-  'Krul6666',
+  '*password*',
   '496492_turtlemaster'
 );
 if (!$dbcnx) {
