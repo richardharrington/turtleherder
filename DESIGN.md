@@ -166,11 +166,31 @@ player's current link. Hashing would force regenerate-only UX, and a database
 compromise of this app already exposes everything the tokens protect. Session
 ids are random and stored likewise.
 
+**The personal question (in scope for the auth milestone):** the one place the
+UI does use the session's identity. The original `changeattendance.php` greeted
+the player personally:
+
+```php
+<?php echo "<p>$player_name, will " .
+      "you be coming to the game on " .
+      "$game_date against $game_name at $game_time?</p>"; ?>
+```
+
+That question is revived wherever attendance is answerable, addressed to the
+signed-in player with the yes/no/not-sure controls inline and preselected to
+their current status — e.g. "Alice, will you be coming to the game on Sunday,
+July 19 against the Wombats at 6:30 pm?":
+
+- at the **top of the home/schedule page** (`/:teamSlug`), about the **next
+  upcoming non-bye game** (omitted when there is none);
+- at the **top of each single-game page** (`/:teamSlug/games/:id`), about
+  **that game** (omitted for byes).
+
 **Explicitly out of scope:** subs (they stay in the text-message layer, as
 always); per-player edit enforcement; email delivery; public demo teams.
 Because sessions map to players, the app always knows who is browsing even
-though the UI doesn't use it — so "preselect your own row" and per-player
-enforcement remain cheap future options.
+though the rest of the UI doesn't use it — so highlighting your own row on the
+schedule and per-player enforcement remain cheap future options.
 
 **Schema additions when built:** `player.join_token` (unique),
 `player.is_captain`, and a `session` table (`id`, `player_id`, `created_at`,
