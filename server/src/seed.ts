@@ -19,8 +19,9 @@ try {
   await client.query("TRUNCATE team, player, game, attendance RESTART IDENTITY CASCADE");
 
   const teamResult = await client.query<{ id: number }>(
-    `INSERT INTO team (name, slug, min_players, min_quota_players, quota_label, timezone)
-     VALUES ('Bobcats', 'bobcats', 7, 2, 'women', 'America/New_York')
+    `INSERT INTO team (name, slug, min_players, min_quota_players,
+                       quota_noun_singular, quota_noun_plural, timezone)
+     VALUES ('Bobcats', 'bobcats', 7, 2, 'woman', 'women', 'America/New_York')
      RETURNING id`,
   );
   const teamId = teamResult.rows[0]!.id;

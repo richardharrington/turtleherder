@@ -8,7 +8,10 @@ export const teamSchema = z.object({
   slug: z.string(),
   minPlayers: z.number().int().min(0),
   minQuotaPlayers: z.number().int().min(0),
-  quotaLabel: z.string(), // e.g. "women"; noun used by the roster report
+  // The noun used by the roster report, e.g. "woman"/"women". Both forms
+  // are stored because plurals aren't derivable (woman -> women).
+  quotaNounSingular: z.string(),
+  quotaNounPlural: z.string(),
   timezone: z.string(), // IANA name, e.g. "America/New_York"
 });
 

@@ -42,7 +42,9 @@ The two structural flaws of the original are fixed now, not later:
 ## Schema
 
 - **team** — `id`, `name`, `slug` (unique, used in URLs), `min_players`,
-  `min_quota_players`, `quota_label` (e.g. `"women"`), `timezone` (IANA name).
+  `min_quota_players`, `quota_noun_singular` / `quota_noun_plural`
+  (e.g. `"woman"` / `"women"` — both stored because the report needs both
+  and plurals aren't derivable), `timezone` (IANA name).
   Teams are created via seed script or SQL only in v1 (no admin UI).
   The original's hardcoded `min_players = 7` / `min_females = 2` become these columns.
 - **player** — `id`, `team_id` FK, `name`, `counts_toward_minimum` (boolean).
@@ -95,8 +97,12 @@ Exact shapes to be defined as zod schemas in `shared` during implementation.
   (green = coming, red = not coming, orange = not sure, black = no response).
 - **The roster report keeps the original's grammar engine**: numbers as words,
   singular/plural handling, and the "we need **two** more players, **both** of whom
-  must be women" constructions. The quota noun comes from `team.quota_label`, so the
-  wording stays faithful for classic co-ed teams but works for any league rule.
+  must be women" constructions. The quota noun comes from the team's
+  `quota_noun_singular`/`quota_noun_plural`, so the wording stays faithful for
+  classic co-ed teams but works for any league rule. One sentence is necessarily
+  reworded: the original counted both genders ("two women and five men, for a
+  total of seven players"), which the quota flag can't express; it becomes
+  "So far we have **seven** players, **two** of whom are women."
   This logic lives in `shared` or `server` as pure functions — it is the most
   unit-testable code in the app.
 - Bye weeks render as in the original ("Bye week." with no roster).
@@ -123,7 +129,7 @@ Full pyramid:
 | DB access | Raw SQL via `pg` | With node-pg-migrate + per-resource data modules as guardrails |
 | API shape | REST + shared zod schemas | Debuggable with curl; schemas type both sides |
 | Frontend | Vite + TanStack Query | React Router, SPA |
-| Gender modeling | `counts_toward_minimum` flag + `quota_label` | Models the league rule, not identity |
+| Gender modeling | `counts_toward_minimum` flag + quota noun (singular + plural) | Models the league rule, not identity |
 | Attendance | Row = response; absence = no response | 3-state enum, unique (player, game) |
 | Game times | `timestamptz` + team timezone | True instants, local display |
 | Attendance UX | Inline on schedule **and** per-game shareable route | Replaces changeattendance.php |
