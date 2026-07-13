@@ -2,14 +2,16 @@
 
 A rewrite of the original PHP turtleherder as a React + Node app in TypeScript, backed by
 Postgres. This document records the decisions made during the design interview
-(July 2026) and is the spec for the first version.
+(July 2026) and is the spec for the first version. A follow-up interview settled
+the [auth design](#auth-design-agreed-not-yet-built), to be built before deployment.
 
 ## Goal
 
 A **feature-complete copy of the original app**, shipped for real use. The legacy PHP in
 `legacy/` is the reference for behavior. Deliberately deferred to later versions:
 
-- Authentication / access control (currently anyone with the URL can view and edit)
+- Authentication / access control — designed (see below) but not yet built;
+  required before real deployment
 - Improved calendar/date picking beyond the platform default
 - Team creation & settings UI (self-serve signup)
 
@@ -115,6 +117,64 @@ Full pyramid:
 - **API integration:** Hono endpoints against a real test Postgres (Docker).
 - **E2E (Playwright), a few flows:** mark attendance inline, add a game, add a player —
   chosen because the spec is "behaves like the original," and e2e is how that's checked.
+
+## Auth design (agreed, not yet built)
+
+Settled in a second design interview (July 2026). To be implemented as its own
+milestone before any real deployment. Guiding constraint: the app's entire value
+is being *lower-friction than email*, so every unit of auth friction spends the
+product's reason to exist.
+
+**Threat model:** the ex-insider. Rec teams churn every season; the data here is
+precisely "where will this specific person be, and when." So revocation of one
+person's access, without disturbing anyone else, is the non-negotiable
+requirement. (Random discovery and targeted outsiders are covered for free by
+anything that solves this.)
+
+**Mechanism — per-player capability links exchanged for a cookie:**
+
+- Each player has one active **join token** (long random string, e.g. 128-bit
+  base64url), auto-generated when the player is created.
+- The player's personal link is `/join/<token>`. Visiting it sets an httpOnly,
+  Secure, SameSite=Lax **session cookie** and redirects to the team's normal,
+  clean URLs. The token never appears in everyday URLs, so copy-pasting any
+  page (including the shareable per-game links) leaks nothing.
+- Links are **multi-use**: new phone or cleared cookies = tap your link again
+  from your text history. Links reach players by the captain texting them —
+  **no email infrastructure, no passwords, no accounts.**
+- Sessions last **~1 year, rolling** (renewed on every visit): in practice you
+  sign in once per device per season.
+- Every team page and every `/api/teams/:slug/*` endpoint requires a session
+  belonging to that team. Signed-out visitors see only a friendly wall:
+  "Ask your captain for your link." Nothing about the team leaks. There is
+  **no public demo**; the README shows the app with words/screenshots.
+
+**Trust inside the wall — same as the original:** anyone with access can edit
+anyone's attendance and manage games/players. Teammates fixing each other's
+status was always a feature. The one thing gated harder is **access control
+itself**: only captains see the manage-access page.
+
+**Captains:** an `is_captain` boolean on player, managed by SQL only (like team
+creation — it changes about once a season). The seed prints the first captain's
+join link. Captains get a **manage-access page**: each player's current join
+link (copyable for re-texting), plus regenerate and revoke. Regenerating or
+revoking a token also kills that player's sessions; deleting a player cascades
+everything.
+
+**Token storage — plaintext, deliberately:** captains can always re-copy a
+player's current link. Hashing would force regenerate-only UX, and a database
+compromise of this app already exposes everything the tokens protect. Session
+ids are random and stored likewise.
+
+**Explicitly out of scope:** subs (they stay in the text-message layer, as
+always); per-player edit enforcement; email delivery; public demo teams.
+Because sessions map to players, the app always knows who is browsing even
+though the UI doesn't use it — so "preselect your own row" and per-player
+enforcement remain cheap future options.
+
+**Schema additions when built:** `player.join_token` (unique),
+`player.is_captain`, and a `session` table (`id`, `player_id`, `created_at`,
+`last_seen_at`).
 
 ## Decision log (from the interview)
 
