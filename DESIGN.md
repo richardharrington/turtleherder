@@ -14,6 +14,11 @@ A **feature-complete copy of the original app**, shipped for real use. The legac
   required before real deployment
 - Improved calendar/date picking beyond the platform default
 - Team creation & settings UI (self-serve signup)
+- A public landing page at `/` (the old `index.html`'s role), which is also the
+  home for the **tip jar**: the app stays free with no freemium tier, ever; a
+  single static sentence + link (GitHub Sponsors or Ko-fi, not Patreon — no
+  membership semantics) lets appreciative captains chip in for hosting. Never
+  on team-facing pages, never a banner/modal/nag, no tracking attached.
 
 The two structural flaws of the original are fixed now, not later:
 
