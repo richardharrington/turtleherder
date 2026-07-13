@@ -1,5 +1,7 @@
 import type {
   AttendanceStatus,
+  Game,
+  GameInput,
   GameWithAttendance,
   PlayerGameStatus,
 } from "@turtleherder/shared";
@@ -19,6 +21,16 @@ interface PlayerStatusRow {
   name: string;
   counts_toward_minimum: boolean;
   status: AttendanceStatus | null; // null = no attendance row = no response
+}
+
+function toGame(row: GameRow): Game {
+  return {
+    id: row.id,
+    teamId: row.team_id,
+    opponentName: row.opponent_name,
+    opponentColor: row.opponent_color,
+    startsAt: row.starts_at.toISOString(),
+  };
 }
 
 function toPlayerStatus(row: PlayerStatusRow): PlayerGameStatus {
@@ -44,11 +56,7 @@ function assemble(
     list.push(toPlayerStatus(row));
   }
   return gameRows.map((row) => ({
-    id: row.id,
-    teamId: row.team_id,
-    opponentName: row.opponent_name,
-    opponentColor: row.opponent_color,
-    startsAt: row.starts_at.toISOString(),
+    ...toGame(row),
     players: playersByGame.get(row.id) ?? [],
   }));
 }
@@ -96,4 +104,44 @@ export async function getGameWithAttendance(
     [teamId, gameId],
   );
   return assemble(games.rows, statuses.rows)[0]!;
+}
+
+export async function createGame(
+  teamId: number,
+  input: GameInput,
+): Promise<Game> {
+  const { rows } = await pool.query<GameRow>(
+    `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, team_id, opponent_name, opponent_color, starts_at`,
+    [teamId, input.opponentName, input.opponentColor, input.startsAt],
+  );
+  return toGame(rows[0]!);
+}
+
+export async function updateGame(
+  teamId: number,
+  gameId: number,
+  input: GameInput,
+): Promise<Game | null> {
+  const { rows } = await pool.query<GameRow>(
+    `UPDATE game SET opponent_name = $3, opponent_color = $4, starts_at = $5
+     WHERE id = $2 AND team_id = $1
+     RETURNING id, team_id, opponent_name, opponent_color, starts_at`,
+    [teamId, gameId, input.opponentName, input.opponentColor, input.startsAt],
+  );
+  const row = rows[0];
+  return row ? toGame(row) : null;
+}
+
+// Attendance rows cascade via the FK (the original deleted them explicitly).
+export async function deleteGame(
+  teamId: number,
+  gameId: number,
+): Promise<boolean> {
+  const result = await pool.query(
+    `DELETE FROM game WHERE id = $2 AND team_id = $1`,
+    [teamId, gameId],
+  );
+  return (result.rowCount ?? 0) > 0;
 }

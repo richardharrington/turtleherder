@@ -1,6 +1,10 @@
 import type {
   AttendanceStatus,
+  Game,
+  GameInput,
   GameWithAttendance,
+  Player,
+  PlayerInput,
   Team,
 } from "@turtleherder/shared";
 
@@ -31,6 +35,81 @@ export async function fetchGame(
   gameId: string,
 ): Promise<GameWithAttendance> {
   return toJson(await fetch(`${teamUrl(slug)}/games/${gameId}`), "fetch game");
+}
+
+function jsonInit(method: string, body: unknown): RequestInit {
+  return {
+    method,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  };
+}
+
+export async function fetchPlayers(slug: string): Promise<Player[]> {
+  return toJson(await fetch(`${teamUrl(slug)}/players`), "fetch players");
+}
+
+export async function createPlayer(
+  slug: string,
+  input: PlayerInput,
+): Promise<Player> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/players`, jsonInit("POST", input)),
+    "create player",
+  );
+}
+
+export async function updatePlayer(
+  slug: string,
+  playerId: number,
+  input: PlayerInput,
+): Promise<Player> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/players/${playerId}`, jsonInit("PUT", input)),
+    "update player",
+  );
+}
+
+export async function deletePlayer(
+  slug: string,
+  playerId: number,
+): Promise<void> {
+  const res = await fetch(`${teamUrl(slug)}/players/${playerId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`delete player failed: ${res.status}`);
+  }
+}
+
+export async function createGame(
+  slug: string,
+  input: GameInput,
+): Promise<Game> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/games`, jsonInit("POST", input)),
+    "create game",
+  );
+}
+
+export async function updateGame(
+  slug: string,
+  gameId: number,
+  input: GameInput,
+): Promise<Game> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/games/${gameId}`, jsonInit("PUT", input)),
+    "update game",
+  );
+}
+
+export async function deleteGame(slug: string, gameId: number): Promise<void> {
+  const res = await fetch(`${teamUrl(slug)}/games/${gameId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(`delete game failed: ${res.status}`);
+  }
 }
 
 export async function putAttendance(

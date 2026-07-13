@@ -28,9 +28,9 @@ export const playerSchema = z.object({
 
 export type Player = z.infer<typeof playerSchema>;
 
-export const playerInputSchema = playerSchema.pick({
-  name: true,
-  countsTowardMinimum: true,
+export const playerInputSchema = z.object({
+  name: z.string().trim().min(1),
+  countsTowardMinimum: z.boolean(),
 });
 
 export type PlayerInput = z.infer<typeof playerInputSchema>;
@@ -47,10 +47,10 @@ export const gameSchema = z.object({
 
 export type Game = z.infer<typeof gameSchema>;
 
-export const gameInputSchema = gameSchema.pick({
-  opponentName: true,
-  opponentColor: true,
-  startsAt: true,
+export const gameInputSchema = z.object({
+  opponentName: z.string().trim().min(1).nullable(), // null = bye week
+  opponentColor: z.string().trim().min(1).nullable(),
+  startsAt: z.iso.datetime({ offset: true }),
 });
 
 export type GameInput = z.infer<typeof gameInputSchema>;
