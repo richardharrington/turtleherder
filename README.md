@@ -1,5 +1,18 @@
 # Turtleherder
 
+> **Rewrite in progress (2026):** this app is being rebuilt as a React + Node
+> (TypeScript) monorepo backed by Postgres. See [DESIGN.md](DESIGN.md) for the
+> full design. The original PHP app lives in [`legacy/`](legacy/) as the
+> reference spec. Development setup:
+>
+> ```sh
+> pnpm install
+> pnpm db:up        # Postgres via Docker Compose
+> pnpm db:migrate   # run migrations
+> pnpm db:seed      # demo "bobcats" team
+> pnpm dev          # API on :3000, client on :5173 (visit /bobcats)
+> ```
+
 
 This is a bare-bones attendance tracking app for use with recreational sports teams. It's particularly helpful with co-ed teams, because you'll be able to set both the number of players you need to field and also the number of women (many co-ed leagues require a team to have a mininum number of women present in order to play).
 
