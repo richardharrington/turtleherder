@@ -12,6 +12,14 @@
 > pnpm db:seed      # demo "bobcats" team
 > pnpm dev          # API on :3000, client on :5173 (visit /bobcats)
 > ```
+>
+> **Deploying (Railway):** the repo is deploy-ready as a single service —
+> `railway.json` builds the client, runs migrations pre-deploy, and starts the
+> server, which also serves the built client. Create a Railway project from
+> this repo, add a Postgres service, and set `DATABASE_URL` on the app service
+> to `${{Postgres.DATABASE_URL}}`. Railway provides `PORT` automatically.
+> Seed a team by running `pnpm db:seed` with `DATABASE_URL` pointed at the
+> Railway database (or insert your real team with SQL).
 
 
 This is a bare-bones attendance tracking app for use with recreational sports teams. It's particularly helpful with co-ed teams, because you'll be able to set both the number of players you need to field and also the number of women (many co-ed leagues require a team to have a mininum number of women present in order to play).

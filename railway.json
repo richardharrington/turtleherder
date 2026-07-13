@@ -1,0 +1,12 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "pnpm build"
+  },
+  "deploy": {
+    "preDeployCommand": "pnpm db:migrate",
+    "startCommand": "pnpm start",
+    "healthcheckPath": "/api/health"
+  }
+}

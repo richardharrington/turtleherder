@@ -2,8 +2,10 @@
   "name": "turtleherder",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@11.5.3",
   "scripts": {
     "dev": "pnpm --parallel --filter server --filter client dev",
+    "start": "pnpm --filter @turtleherder/server start",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
