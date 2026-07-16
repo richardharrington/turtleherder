@@ -4,8 +4,8 @@
 //
 // The API is walled (see DESIGN.md's auth section), so this also creates a
 // session for Alice and writes it to a Playwright storageState file; every
-// test browses as signed-in Alice. E2e coverage of the join flow and the
-// wall itself arrives with auth's UI in the front-end push milestone.
+// test in app.spec.ts browses as signed-in Alice. auth.spec.ts opts out
+// (empty storageState) to cover the wall and the join flow themselves.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
