@@ -413,8 +413,12 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
    updated to cover the wall and join flow (13 tests). Implementation
    decisions in
    [Front-end implementation notes](#front-end-implementation-notes-milestone-3-built-july-2026).
-4. **CI** — GitHub Actions running all three suites on push, before a real
-   team depends on master.
+4. **CI** — ✅ done (July 2026). GitHub Actions running typecheck, build,
+   and all three suites on master pushes and PRs: two parallel jobs, each
+   with its own Postgres service container (Actions can't mount the initdb
+   script, so the service creates `turtleherder_test` directly via
+   `POSTGRES_DB`). Node 24 pinned via `engines` + `.nvmrc`; Playwright
+   traces are uploaded as an artifact on failure.
 5. **Deploy** — Railway, with **turtleherder.com pointed at it from day one**
    so the team's saved links (join links especially) never change. Before
    repointing: verify nobody still depends on the old PHP site there. Seed the
