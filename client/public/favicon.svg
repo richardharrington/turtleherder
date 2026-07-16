@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#5ec942"/>
+  <g fill="#ffffff">
+    <!-- head -->
+    <circle cx="256" cy="122" r="42"/>
+    <rect x="228" y="122" width="56" height="48"/>
+    <!-- front flippers -->
+    <ellipse cx="148" cy="196" rx="58" ry="24" transform="rotate(-38 148 196)"/>
+    <ellipse cx="364" cy="196" rx="58" ry="24" transform="rotate(38 364 196)"/>
+    <!-- rear flippers -->
+    <ellipse cx="158" cy="370" rx="52" ry="22" transform="rotate(38 158 370)"/>
+    <ellipse cx="354" cy="370" rx="52" ry="22" transform="rotate(-38 354 370)"/>
+    <!-- tail -->
+    <path d="M 244 396 L 268 396 L 256 446 Z"/>
+    <!-- shell -->
+    <ellipse cx="256" cy="278" rx="110" ry="132"/>
+  </g>
+  <!-- shell pattern: green lines over the white shell -->
+  <g stroke="#5ec942" stroke-width="10" fill="none">
+    <ellipse cx="256" cy="278" rx="64" ry="82"/>
+    <line x1="256" y1="196" x2="256" y2="360"/>
+    <line x1="192" y1="278" x2="320" y2="278"/>
+  </g>
+</svg>
