@@ -23,6 +23,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${CLIENT_PORT}`,
     storageState: STORAGE_STATE,
+    // In CI, keep traces for failed tests; the workflow uploads them.
+    trace: process.env.CI ? "retain-on-failure" : "off",
   },
   webServer: [
     {
