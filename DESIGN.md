@@ -419,9 +419,11 @@ it.
   (`db:create-team`: name, slug, quota settings, captain) inserts one team
   plus its captain and prints the captain's join link — it never truncates,
   unlike the dev seed, and doubles as a dry run for milestone 7's
-  self-serve flow. Production holds the real team **and a private bobcats
-  sandbox** — unreachable without its join links, per the wall — for
-  verifying deploys and demoing without touching real data.
+  self-serve flow. Production holds **the real team and nothing else**: a
+  sandbox for verifying a deploy or demoing is one `db:create-team` away
+  whenever one is wanted, so no standing demo data has to be kept alive or
+  explained. Deploy verification uses a throwaway team from that same
+  script, dropped afterward, so it still never touches real data.
 - **DNS:** the domain **transfers from Route 53 to Namecheap** (a
   consolidation wanted independently); Namecheap's ALIAS record points the
   apex at Railway, which Route 53 cannot do (its alias records only target
@@ -435,9 +437,9 @@ it.
   forgotten user surfaces.
 - **Backups:** Railway's built-in Postgres backups, with one restore
   verified by hand. No extra machinery.
-- **Cutover order:** deploy → verify on the Railway URL → create bobcats +
-  the real team → transfer completes → ALIAS/CNAME → re-verify on
-  turtleherder.com → the captain texts everyone their join links.
+- **Cutover order:** deploy → verify on the Railway URL → create the real
+  team → transfer completes → ALIAS/CNAME → re-verify on turtleherder.com →
+  the captain texts everyone their join links.
 
 ## Roadmap
 
@@ -601,7 +603,7 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Deploy trigger | Master push, gated on CI green | Railway wait-for-CI consumes the two required GitHub checks; Actions verifies, Railway ships |
 | Service config | `railway.json` in the repo | Dashboard holds only secrets + domains |
 | Production seeding | Parameterized `db:create-team` script | Never truncates; prints the captain's join link; dry run for milestone 7 self-serve |
-| Demo team in prod | Yes — private bobcats sandbox | Join-link-gated, invisible otherwise; deploy verification never touches real data |
+| Demo team in prod | No — none | Reversed while building milestone 5: `db:create-team` conjures a sandbox on demand, so a permanent seeded one earns nothing it doesn't cost. Deploy verification uses a throwaway team from the same script and still never touches real data |
 | DNS | Transfer Route 53 → Namecheap; ALIAS at apex | Route 53 can't point an apex at Railway; the registrar consolidation was wanted anyway. Transfer starts first (long pole) |
 | Old PHP site | Judgment call — no log audit | Repointing DNS destroys nothing and reverses in minutes |
 | Backups | Railway built-in, restore verified once | No extra machinery for a one-team app |
