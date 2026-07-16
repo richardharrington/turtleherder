@@ -204,6 +204,46 @@ schedule and per-player enforcement remain cheap future options.
 `player.is_captain`, and a `session` table (`id`, `player_id`, `created_at`,
 `last_seen_at`).
 
+### Auth implementation notes (milestone 1, backend built July 2026)
+
+The backend half is built; the UI (wall page, manage-access page, personal
+question) waits for the front-end push milestone. Implementation decisions,
+settled in a fourth interview:
+
+- **Tokens & sessions:** join tokens are 128-bit `crypto.randomBytes`
+  base64url; session ids 256-bit. Cookie `th_session`: httpOnly,
+  SameSite=Lax, Path=/, Max-Age 1 year; `Secure` only when
+  `NODE_ENV=production` (dev and e2e run over plain http on localhost).
+- **Rolling renewal, throttled hourly:** validity = `last_seen_at` within
+  365 days, checked on every request; the renewal write + re-issued cookie
+  happen at most once an hour per session. Expired rows are pruned
+  opportunistically on every `/join` hit — no scheduler.
+- **Uniform 401, session-first:** any `/api/teams/:slug/*` request without a
+  valid session *for that slug* gets the identical
+  `401 {"error":"unauthorized"}` — signed out, expired, wrong team, and
+  nonexistent team are indistinguishable, so slugs can't be enumerated. The
+  wall page keys off the 401. A signed-in non-captain calling a captain
+  endpoint gets `403 {"error":"forbidden"}` (inside the wall, honesty beats
+  opacity).
+- **Revoked tokens keep their row:** revoke stamps
+  `player.join_token_revoked_at` (repeat revokes keep the first stamp);
+  `/join` and the access list treat a stamped token as dead. Regenerate
+  writes a fresh token and clears the stamp. Both kill the player's sessions
+  in the same transaction.
+- **Endpoints:** `GET /join/:token` lives *outside* `/api` (it's a browser
+  navigation): valid → session cookie + 302 to `/:teamSlug`; invalid/revoked
+  → 302 to `/?join=invalid` (constant `INVALID_JOIN_REDIRECT` in `shared`),
+  so the wall can say "that link didn't work — ask your captain."
+  `GET /api/teams/:slug/me` → `{ playerId, name, isCaptain }` (backs the
+  personal question). Captains only: `GET /api/teams/:slug/access` (each
+  player's current link, `joinToken: null` + `revokedAt` when revoked) and
+  `POST /api/teams/:slug/players/:id/regenerate-token` / `…/revoke-token`.
+  Shapes are `meSchema` / `playerAccessSchema` in `shared`.
+- **Tests sign in by inserting session rows directly:** integration tests
+  send the cookie header; e2e's global-setup writes a Playwright
+  `storageState` file so every test browses as fixture-Alice. The dev seed
+  prints captain Alison Bechdel's join link.
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
