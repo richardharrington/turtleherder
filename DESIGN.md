@@ -2,18 +2,20 @@
 
 A rewrite of the original PHP turtleherder as a React + Node app in TypeScript, backed by
 Postgres. This document records the decisions made during the design interview
-(July 2026) and is the spec for the first version. A follow-up interview settled
-the [auth design](#auth-design-agreed-not-yet-built), to be built before deployment.
-A third interview (July 2026) settled the [roadmap](#roadmap) — the priority
-order for everything after feature parity.
+(July 2026) and is the spec for the first version. A second interview settled
+the [auth design](#auth-design); a third the [roadmap](#roadmap) — the
+priority order for everything after feature parity; a fourth the auth
+backend's implementation details as that backend was built (July 2026
+throughout).
 
 ## Goal
 
 A **feature-complete copy of the original app**, shipped for real use. The legacy PHP in
 `legacy/` is the reference for behavior. Deliberately deferred to later versions:
 
-- Authentication / access control — designed (see below) but not yet built;
-  required before real deployment
+- Authentication / access control UI — the design and backend are done (see
+  below); the wall page, manage-access page, and personal question arrive in
+  the front-end push (see [Roadmap](#roadmap)), before real deployment
 - Improved calendar/date picking beyond the platform default — since folded
   into the pre-launch mobile-first redesign (see [Roadmap](#roadmap))
 - Team creation & settings UI (self-serve signup)
@@ -60,7 +62,9 @@ The two structural flaws of the original are fixed now, not later:
 - **player** — `id`, `team_id` FK, `name`, `counts_toward_minimum` (boolean).
   This quota-eligibility flag replaces the original's `gender` column: it models what
   the league actually checks (does this player count toward the women/gender-minimum
-  rule) without modeling gender identity.
+  rule) without modeling gender identity. The auth milestone added
+  `join_token` (unique), `join_token_revoked_at`, and `is_captain` — see
+  [Auth design](#auth-design).
 - **game** — `id`, `team_id` FK, `opponent_name` (nullable — `NULL` means bye week),
   `opponent_color` (nullable), `starts_at` (`timestamptz`).
   Times are true instants; the team's `timezone` is used for entry and display.
@@ -70,6 +74,9 @@ The two structural flaws of the original are fixed now, not later:
   pre-created for every player × game; the schedule view LEFT JOINs the roster to
   render non-responders. This eliminates the original's insert-fanout on new
   players/games.
+- **session** — `id` (random text, the cookie value), `player_id` FK,
+  `created_at`, `last_seen_at`. Added by the auth milestone; see
+  [Auth design](#auth-design).
 
 ## Routes (client)
 
@@ -90,15 +97,21 @@ later). Deletes use confirm dialogs instead of confirmation pages. The
 
 ## API (server)
 
-REST under `/api`, team-scoped by slug. Roughly:
+REST under `/api`, team-scoped by slug. Every team-scoped endpoint requires a
+session cookie for that team (see [Auth design](#auth-design)); the lone route
+outside `/api` is `GET /join/<token>`, the browser-facing cookie exchange.
+Roughly:
 
 - `GET /api/teams/:slug` — team with settings
+- `GET /api/teams/:slug/me` — the signed-in player (backs the personal question)
 - `GET /api/teams/:slug/games` — games with attendance + roster report data
 - `GET /api/teams/:slug/games/:id` — single game (backs the shareable page)
 - `POST/PUT/DELETE` on games and players
 - `PUT /api/teams/:slug/games/:gameId/attendance/:playerId` — upsert status
+- Captains only: `GET /api/teams/:slug/access` (each player's join link), plus
+  `POST …/players/:id/regenerate-token` and `POST …/players/:id/revoke-token`
 
-Exact shapes to be defined as zod schemas in `shared` during implementation.
+Exact shapes live as zod schemas in `shared`.
 
 ## UX fidelity
 
@@ -126,10 +139,11 @@ Full pyramid:
 - **E2E (Playwright), a few flows:** mark attendance inline, add a game, add a player —
   chosen because the spec is "behaves like the original," and e2e is how that's checked.
 
-## Auth design (agreed, not yet built)
+## Auth design
 
-Settled in a second design interview (July 2026). To be implemented as its own
-milestone before any real deployment. Guiding constraint: the app's entire value
+Settled in a second design interview (July 2026). The backend half was built
+as its own milestone (July 2026); the UI arrives with the front-end push,
+before any real deployment. Guiding constraint: the app's entire value
 is being *lower-friction than email*, so every unit of auth friction spends the
 product's reason to exist.
 
@@ -174,7 +188,8 @@ player's current link. Hashing would force regenerate-only UX, and a database
 compromise of this app already exposes everything the tokens protect. Session
 ids are random and stored likewise.
 
-**The personal question (in scope for the auth milestone):** the one place the
+**The personal question (designed here; built with auth's UI in the
+front-end push):** the one place the
 UI does use the session's identity. The original `changeattendance.php` greeted
 the player personally:
 
@@ -200,9 +215,9 @@ Because sessions map to players, the app always knows who is browsing even
 though the rest of the UI doesn't use it — so highlighting your own row on the
 schedule and per-player enforcement remain cheap future options.
 
-**Schema additions when built:** `player.join_token` (unique),
-`player.is_captain`, and a `session` table (`id`, `player_id`, `created_at`,
-`last_seen_at`).
+**Schema additions (built):** `player.join_token` (unique),
+`player.join_token_revoked_at`, `player.is_captain`, and a `session` table
+(`id`, `player_id`, `created_at`, `last_seen_at`).
 
 ### Auth implementation notes (milestone 1, backend built July 2026)
 
@@ -253,7 +268,8 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 
 **Pre-launch spine** (in order; each milestone is a commit boundary):
 
-1. **Auth backend** — shovel-ready now, zero design dependency: migration
+1. **Auth backend** — ✅ done (July 2026). Was shovel-ready with zero design
+   dependency: migration
    (`player.join_token`, `player.is_captain`, `session` table), the
    `/join/<token>` cookie exchange, session middleware walling team pages and
    API, token regenerate/revoke endpoints, integration tests. Auth's UI waits
@@ -302,7 +318,7 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
   texted join/game links open the native app. First-class push arrives here
   if push is ever wanted.
 
-## Decision log (from the interview)
+## Decision log (original design interview)
 
 | Decision | Choice | Notes |
 | --- | --- | --- |
@@ -326,7 +342,7 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Dev env | Docker Compose Postgres + pnpm | |
 | Legacy PHP | Moved to `legacy/`, kept as reference spec | Delete whenever |
 
-### Decision log (auth implementation interview)
+## Decision log (auth implementation interview)
 
 | Decision | Choice | Notes |
 | --- | --- | --- |
