@@ -5,7 +5,9 @@ Postgres. This document records the decisions made during the design interview
 (July 2026) and is the spec for the first version. A second interview settled
 the [auth design](#auth-design); a third the [roadmap](#roadmap) — the
 priority order for everything after feature parity; a fourth the auth
-backend's implementation details as that backend was built (July 2026
+backend's implementation details as that backend was built; a fifth settled
+the mobile-first redesign's visual and UX direction, recorded in the
+standalone [`REDESIGN.md`](REDESIGN.md) rather than here (July 2026
 throughout).
 
 ## Goal
@@ -115,9 +117,11 @@ Exact shapes live as zod schemas in `shared`.
 
 ## UX fidelity
 
-- **Faithful recreation of the original look**: `legacy/bobcats/css/main.css` ported —
-  green gradient, centered white card, purple links, color-coded statuses
-  (green = coming, red = not coming, orange = not sure, black = no response).
+- **Visual design**: originally a faithful port of `legacy/bobcats/css/main.css`
+  (green gradient, centered white card, purple links, color-coded statuses).
+  Superseded before launch by the mobile-first redesign — see
+  [`REDESIGN.md`](REDESIGN.md) for the settled look (the green and status
+  colors survive, toned for 2026; the gradient and purple links don't).
 - **The roster report keeps the original's grammar engine**: numbers as words,
   singular/plural handling, and the "we need **two** more players, **both** of whom
   must be women" constructions. The quota noun comes from the team's
@@ -274,15 +278,17 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
    `/join/<token>` cookie exchange, session middleware walling team pages and
    API, token regenerate/revoke endpoints, integration tests. Auth's UI waits
    for the redesign so it's built once.
-2. **Mobile-first redesign (design phase)** — its own design interview, run in
-   parallel with milestone 1. Scope decided here: the **full UX rethink** —
-   visual redesign, attendance controls designed for thumbs, and the
-   previously-deferred calendar/date-picking UX (that interview must set the
-   calendar work's ceiling explicitly — possibly "style the native input
-   well," not a custom picker). Includes the **PWA shell** (manifest, icons,
-   standalone display) so the team gets a home-screen icon from day one.
-   Supersedes the "faithful port of original CSS" decision; how much of the
-   2010 soul survives is that interview's question.
+2. **Mobile-first redesign (design phase)** — ✅ done (July 2026). Settled in
+   its own design interview, run in parallel with milestone 1; recorded in
+   the standalone [`REDESIGN.md`](REDESIGN.md), not here. Scope: the **full
+   UX rethink** — visual redesign (green and status-color heritage kept,
+   toned for 2026; gradient and purple links dropped), attendance controls
+   designed for thumbs (a segmented Yes/No/Not-Sure control), and the
+   calendar/date-picking ceiling set at "style the native input well" (no
+   custom picker). Includes the **PWA shell** (manifest, icons, standalone
+   display) so the team gets a home-screen icon from day one. Surfaced one
+   unscoped need along the way — captains managing more than one team — see
+   Parking lot.
 3. **One front-end push** — every page built once in the new design language:
    the existing pages plus auth's UI (the friendly wall, the captains'
    manage-access page, the personal question at the top of home and
@@ -317,6 +323,11 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
   experience; both coexist indefinitely, and universal links make already-
   texted join/game links open the native app. First-class push arrives here
   if push is ever wanted.
+- **Multi-team captain switching** — surfaced during the redesign interview:
+  a captain running more than one team has no way to switch between them in
+  the UI (the schema has supported multi-team from day one; the client and
+  session model assume one team per visit). Not scoped anywhere yet; revisit
+  if a real captain actually runs multiple teams.
 
 ## Decision log (original design interview)
 
@@ -337,7 +348,7 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Attendance UX | Inline on schedule **and** per-game shareable route | Replaces changeattendance.php |
 | Date entry | Native `datetime-local` | Six dropdowns retired |
 | Report copy | Original grammar engine, configurable quota noun | The app's soul, preserved |
-| Styling | Faithful port of original CSS | Superseded by the mobile-first redesign (see [Roadmap](#roadmap)) |
+| Styling | Superseded — see [`REDESIGN.md`](REDESIGN.md) | Mobile-first redesign (milestone 2) kept the green/status-color heritage, dropped the gradient and purple links |
 | Testing | Unit + API integration + Playwright e2e | |
 | Dev env | Docker Compose Postgres + pnpm | |
 | Legacy PHP | Moved to `legacy/`, kept as reference spec | Delete whenever |
