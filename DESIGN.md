@@ -10,7 +10,8 @@ the mobile-first redesign's visual and UX direction, recorded in the
 standalone [`REDESIGN.md`](REDESIGN.md) rather than here; a sixth settled
 the front-end push's implementation details as it was built; a seventh the
 [multi-team keyring](#multi-team-keyring-designed-july-2026-build-in-milestone-6)
-— how one browser holds several teams (July 2026 throughout).
+— how one browser holds several teams; an eighth (a short one) the CI
+workflow's open forks as it was built (July 2026 throughout).
 
 ## Goal
 
@@ -145,6 +146,12 @@ Full pyramid:
 - **API integration:** Hono endpoints against a real test Postgres (Docker).
 - **E2E (Playwright), a few flows:** mark attendance inline, add a game, add a player —
   chosen because the spec is "behaves like the original," and e2e is how that's checked.
+
+All three levels (plus typecheck and build) run in GitHub Actions on every
+master push and PR — see roadmap milestone 4 and the
+[CI decision log](#decision-log-ci-interview). Locally, the suites assume
+the Compose Postgres is up and read `TEST_DATABASE_URL` (defaulting to the
+Compose `turtleherder_test` database).
 
 ## Auth design
 
@@ -521,3 +528,13 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | PWA landing | One-time chooser on first multi-team launch, then remembered | The anchor moves on any team visit (= last-visited thereafter) |
 | Roadmap slot | Milestone 6: after deploy, before self-serve | Launch team ships sooner; keyring ready before second teams are common |
 | Rejected | Accounts / person entity; client-stored tokens; cookie-per-team; unified cross-team views | The person is never modeled — only what a browser holds |
+
+## Decision log (CI interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Node version | 24, pinned | Matches the dev machine and is Active LTS; recorded as `engines: >=24` plus `.nvmrc`, which the workflow reads via `node-version-file` — one source of truth |
+| Triggers | Push to master + all PRs | The conventional shape; avoids duplicate push/PR runs. Known cost: a feature branch gets no CI until a PR opens for it |
+| Scope beyond the suites | typecheck + build included | Tests consume TypeScript source directly, so nothing else exercises `pnpm build` until deploy (milestone 5) — CI is the only pre-launch place build breakage can surface |
+| Branch protection | Required checks (both jobs) to merge a PR; admin enforcement off | Direct admin pushes bypass, preserving the push-to-master workflow. A GitHub repo setting, not visible in the repo |
+| Job layout (as-built) | Two parallel jobs, each with its own `postgres:17-alpine` service | Integration and e2e both truncate/reseed `turtleherder_test`; isolated databases beat sequencing. The service gets `POSTGRES_DB` directly because service containers start before checkout and can't mount `docker/create-test-db.sql` |
