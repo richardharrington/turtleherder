@@ -4,6 +4,8 @@ A rewrite of the original PHP turtleherder as a React + Node app in TypeScript, 
 Postgres. This document records the decisions made during the design interview
 (July 2026) and is the spec for the first version. A follow-up interview settled
 the [auth design](#auth-design-agreed-not-yet-built), to be built before deployment.
+A third interview (July 2026) settled the [roadmap](#roadmap) — the priority
+order for everything after feature parity.
 
 ## Goal
 
@@ -12,7 +14,8 @@ A **feature-complete copy of the original app**, shipped for real use. The legac
 
 - Authentication / access control — designed (see below) but not yet built;
   required before real deployment
-- Improved calendar/date picking beyond the platform default
+- Improved calendar/date picking beyond the platform default — since folded
+  into the pre-launch mobile-first redesign (see [Roadmap](#roadmap))
 - Team creation & settings UI (self-serve signup)
 - A public landing page at `/` (the old `index.html`'s role), which is also the
   home for the **tip jar**: the app stays free with no freemium tier, ever; a
@@ -201,6 +204,64 @@ schedule and per-player enforcement remain cheap future options.
 `player.is_captain`, and a `session` table (`id`, `player_id`, `created_at`,
 `last_seen_at`).
 
+## Roadmap
+
+Settled in a third design interview (July 2026). Sort key: **real users first**
+— a specific team is waiting to adopt the app — with learning value breaking
+ties. There is no hard date, so scope wasn't cut to meet one; but self-serve
+signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
+
+**Pre-launch spine** (in order; each milestone is a commit boundary):
+
+1. **Auth backend** — shovel-ready now, zero design dependency: migration
+   (`player.join_token`, `player.is_captain`, `session` table), the
+   `/join/<token>` cookie exchange, session middleware walling team pages and
+   API, token regenerate/revoke endpoints, integration tests. Auth's UI waits
+   for the redesign so it's built once.
+2. **Mobile-first redesign (design phase)** — its own design interview, run in
+   parallel with milestone 1. Scope decided here: the **full UX rethink** —
+   visual redesign, attendance controls designed for thumbs, and the
+   previously-deferred calendar/date-picking UX (that interview must set the
+   calendar work's ceiling explicitly — possibly "style the native input
+   well," not a custom picker). Includes the **PWA shell** (manifest, icons,
+   standalone display) so the team gets a home-screen icon from day one.
+   Supersedes the "faithful port of original CSS" decision; how much of the
+   2010 soul survives is that interview's question.
+3. **One front-end push** — every page built once in the new design language:
+   the existing pages plus auth's UI (the friendly wall, the captains'
+   manage-access page, the personal question at the top of home and
+   single-game pages). Playwright suite updated to cover the wall and join
+   flow.
+4. **CI** — GitHub Actions running all three suites on push, before a real
+   team depends on master.
+5. **Deploy** — Railway, with **turtleherder.com pointed at it from day one**
+   so the team's saved links (join links especially) never change. Before
+   repointing: verify nobody still depends on the old PHP site there. Seed the
+   real team; the captain onboards everyone by texting join links.
+
+**Post-launch** (in order):
+
+6. **Self-serve teams** — a public create-team flow: team row, first captain,
+   and that captain's join link issued entirely through the UI. Supersedes
+   "seed/SQL only" for team *creation*; later captain changes may stay SQL
+   until this milestone decides otherwise. Brings the first spam/abuse
+   considerations.
+7. **Landing page + tip jar** — the polish pass on the public page:
+   what-is-this copy plus the single tip-jar sentence and link (GitHub
+   Sponsors or Ko-fi), per the constraints in the goal section.
+
+**Parking lot** (explicitly unranked, not forgotten):
+
+- **Push notifications** — deliberately unresolved. The captain's text *is*
+  the notification layer, and it worked for a decade; automated nagging is
+  the bells-and-whistles-ness this app exists to reject. Revisit only if a
+  real captain says "I'm tired of texting reminders."
+- **React Native / App Store app** — eventual follow-up, purely additive: a
+  second client on the same API. The web app remains the permanent web
+  experience; both coexist indefinitely, and universal links make already-
+  texted join/game links open the native app. First-class push arrives here
+  if push is ever wanted.
+
 ## Decision log (from the interview)
 
 | Decision | Choice | Notes |
@@ -220,7 +281,7 @@ schedule and per-player enforcement remain cheap future options.
 | Attendance UX | Inline on schedule **and** per-game shareable route | Replaces changeattendance.php |
 | Date entry | Native `datetime-local` | Six dropdowns retired |
 | Report copy | Original grammar engine, configurable quota noun | The app's soul, preserved |
-| Styling | Faithful port of original CSS | 2010 look on purpose |
+| Styling | Faithful port of original CSS | Superseded by the mobile-first redesign (see [Roadmap](#roadmap)) |
 | Testing | Unit + API integration + Playwright e2e | |
 | Dev env | Docker Compose Postgres + pnpm | |
 | Legacy PHP | Moved to `legacy/`, kept as reference spec | Delete whenever |
