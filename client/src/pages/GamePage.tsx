@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Team } from "@turtleherder/shared";
 import { Link, useOutletContext, useParams } from "react-router";
 import { fetchGame } from "../api.js";
+import { PersonalQuestionCard } from "../components/PersonalQuestionCard.js";
 import { GameCard } from "../GameCard.js";
+import type { TeamOutletContext } from "../TeamLayout.js";
 
 // A single game with the same inline attendance controls as the
-// schedule — the shareable "set your status for Sunday" link.
+// schedule — the shareable "set your status for Sunday" link. The
+// personal question at the top is about this game (omitted for byes).
 export function GamePage() {
-  const team = useOutletContext<Team>();
+  const { team, me } = useOutletContext<TeamOutletContext>();
   const { gameId } = useParams<"gameId">();
 
   const gameQuery = useQuery({
@@ -25,6 +27,7 @@ export function GamePage() {
 
   return (
     <>
+      <PersonalQuestionCard team={team} me={me} game={gameQuery.data} />
       <GameCard game={gameQuery.data} team={team} />
       <p>
         <Link to={`/${team.slug}`}>See the whole schedule</Link>

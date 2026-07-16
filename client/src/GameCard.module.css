@@ -1,0 +1,81 @@
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.when {
+  margin-bottom: 0;
+}
+
+.versus {
+  margin: 0 0 16px;
+  color: var(--text-secondary);
+}
+
+.bye {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 20px;
+}
+
+.roster {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.playerRow {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.playerLine {
+  margin-bottom: 8px;
+}
+
+.playerName {
+  font-weight: 600;
+}
+
+.statusYes {
+  color: var(--status-yes);
+}
+
+.statusNo {
+  color: var(--status-no);
+}
+
+.statusMaybe {
+  color: var(--status-maybe);
+}
+
+.statusNone {
+  color: var(--status-none);
+}
+
+.report {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.report p {
+  margin: 0 0 8px;
+}
+
+/* Desktop: name/phrase left, control right on one line */
+@media (min-width: 640px) {
+  .playerRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0;
+  }
+
+  .playerLine {
+    margin-bottom: 0;
+  }
+}

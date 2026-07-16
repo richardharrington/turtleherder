@@ -1,0 +1,49 @@
+/* Shared by the roster and game management pages: a white card holding
+   one row per item with its actions, and an add button below. */
+
+.list {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.rowLabel {
+  flex: 1 1 200px;
+}
+
+.rowActions {
+  display: flex;
+  gap: 8px;
+}
+
+.toggleBar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 8px 0;
+  margin-bottom: 16px;
+}
+
+.section {
+  margin: 24px 0 16px;
+}
+
+.empty {
+  color: var(--text-secondary);
+}

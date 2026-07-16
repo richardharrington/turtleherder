@@ -3,7 +3,9 @@ import type {
   Game,
   GameInput,
   GameWithAttendance,
+  Me,
   Player,
+  PlayerAccess,
   PlayerInput,
   Team,
 } from "@turtleherder/shared";
@@ -11,9 +13,22 @@ import type {
 // Thin typed wrappers around the REST API. Every endpoint gets a
 // function here; components only ever go through these.
 
+// Carries the HTTP status so callers can distinguish the auth wall
+// (401, handled globally in main.tsx) from captain-gating (403) and
+// ordinary failures.
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    label: string,
+  ) {
+    super(`${label} failed: ${status}`);
+    this.name = "ApiError";
+  }
+}
+
 async function toJson<T>(res: Response, label: string): Promise<T> {
   if (!res.ok) {
-    throw new Error(`${label} failed: ${res.status}`);
+    throw new ApiError(res.status, label);
   }
   return res.json() as Promise<T>;
 }
@@ -24,6 +39,10 @@ function teamUrl(slug: string): string {
 
 export async function fetchTeam(slug: string): Promise<Team> {
   return toJson(await fetch(teamUrl(slug)), "fetch team");
+}
+
+export async function fetchMe(slug: string): Promise<Me> {
+  return toJson(await fetch(`${teamUrl(slug)}/me`), "fetch me");
 }
 
 export async function fetchGames(slug: string): Promise<GameWithAttendance[]> {
@@ -78,8 +97,38 @@ export async function deletePlayer(
     method: "DELETE",
   });
   if (!res.ok) {
-    throw new Error(`delete player failed: ${res.status}`);
+    throw new ApiError(res.status, "delete player");
   }
+}
+
+// ---- Access management (captains only) ----
+
+export async function fetchAccess(slug: string): Promise<PlayerAccess[]> {
+  return toJson(await fetch(`${teamUrl(slug)}/access`), "fetch access list");
+}
+
+export async function regenerateToken(
+  slug: string,
+  playerId: number,
+): Promise<PlayerAccess> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/players/${playerId}/regenerate-token`, {
+      method: "POST",
+    }),
+    "regenerate token",
+  );
+}
+
+export async function revokeToken(
+  slug: string,
+  playerId: number,
+): Promise<PlayerAccess> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/players/${playerId}/revoke-token`, {
+      method: "POST",
+    }),
+    "revoke token",
+  );
 }
 
 export async function createGame(
@@ -108,7 +157,7 @@ export async function deleteGame(slug: string, gameId: number): Promise<void> {
     method: "DELETE",
   });
   if (!res.ok) {
-    throw new Error(`delete game failed: ${res.status}`);
+    throw new ApiError(res.status, "delete game");
   }
 }
 

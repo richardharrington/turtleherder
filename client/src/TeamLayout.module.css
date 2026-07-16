@@ -1,0 +1,110 @@
+.shell {
+  min-height: 100vh;
+}
+
+.main {
+  padding: 16px;
+  /* Clear the fixed bottom nav */
+  padding-bottom: 96px;
+  max-width: 992px;
+}
+
+.message {
+  padding: 24px 16px;
+  color: var(--text-secondary);
+}
+
+/* ---- Bottom navigation (mobile) ---- */
+
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 10;
+}
+
+.bottomNavItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0 6px;
+  min-height: 56px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+
+/* ---- Sidebar (tablet/desktop) ---- */
+
+.sidebar {
+  display: none;
+}
+
+.teamName {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 20px;
+  margin: 0 16px 24px;
+}
+
+.sidebarItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+
+.sidebarItem:hover {
+  background: var(--surface-dim);
+}
+
+.active {
+  color: var(--green-dark);
+}
+
+@media (min-width: 640px) {
+  .shell {
+    display: flex;
+  }
+
+  .bottomNav {
+    display: none;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-shrink: 0;
+    width: 200px;
+    padding: 24px 8px;
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+
+  .main {
+    flex: 1;
+    min-width: 0;
+    padding: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    width: 240px;
+  }
+}

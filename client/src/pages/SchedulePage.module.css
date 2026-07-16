@@ -1,0 +1,18 @@
+/* The past/future toggle stays reachable while scrolling games: sticky,
+   with the page background so cards slide beneath it cleanly. */
+.toggleBar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  padding: 8px 0;
+  margin-bottom: 8px;
+}
+
+.section {
+  margin: 24px 0 16px;
+}
+
+.empty {
+  color: var(--text-secondary);
+}

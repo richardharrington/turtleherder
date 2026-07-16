@@ -1,16 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import type { Team } from "@turtleherder/shared";
 import { useState } from "react";
 import { useOutletContext } from "react-router";
 import { fetchGames } from "../api.js";
+import { Button } from "../components/Button.js";
+import { PersonalQuestionCard } from "../components/PersonalQuestionCard.js";
 import { GameCard } from "../GameCard.js";
+import type { TeamOutletContext } from "../TeamLayout.js";
+import styles from "./SchedulePage.module.css";
 
-// Home page: the game schedule, ported from legacy/bobcats/index.php.
-// Past games hide behind a toggle whose preference persists in
-// localStorage (the original used a cookie).
+// Home page: the personal question about the next game, then the
+// schedule. Past games hide behind a sticky toggle whose preference
+// persists in localStorage (the original used a cookie).
 
 export function SchedulePage() {
-  const team = useOutletContext<Team>();
+  const { team, me } = useOutletContext<TeamOutletContext>();
   const storageKey = `pastGames:${team.slug}`;
   const [showPast, setShowPast] = useState(
     () => localStorage.getItem(storageKey) === "showing",
@@ -41,50 +44,35 @@ export function SchedulePage() {
   const future = gamesQuery.data.filter(
     (g) => new Date(g.startsAt).getTime() > now,
   );
+  // The personal question is about the next upcoming non-bye game
+  // (games arrive sorted by start time); omitted when there is none.
+  const nextGame = future.find((g) => g.opponentName !== null);
 
   return (
     <>
-      <p>
-        <span className="style1">
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              togglePast();
-            }}
-          >
-            {showPast ? "Hide past games" : "Show past games"}
-          </a>
-        </span>
-      </p>
+      {nextGame && <PersonalQuestionCard team={team} me={me} game={nextGame} />}
+
+      <div className={styles.toggleBar}>
+        <Button variant="secondary" small onClick={togglePast}>
+          {showPast ? "Hide past games" : "Show past games"}
+        </Button>
+      </div>
 
       {showPast &&
         (past.length > 0 ? (
           <>
-            <p>
-              <span className="style3">
-                <strong>Past games:</strong>
-              </span>
-            </p>
+            <h2 className={styles.section}>Past games</h2>
             {past.map((game) => (
               <GameCard key={game.id} game={game} team={team} />
             ))}
           </>
         ) : (
-          <p>
-            <span className="style3">
-              <strong>No past games.</strong>
-            </span>
-          </p>
+          <p className={styles.empty}>No past games.</p>
         ))}
 
       {future.length > 0 && (
         <>
-          <p>
-            <span className="style3">
-              <strong>Future games:</strong>
-            </span>
-          </p>
+          <h2 className={styles.section}>Future games</h2>
           {future.map((game) => (
             <GameCard key={game.id} game={game} team={team} />
           ))}

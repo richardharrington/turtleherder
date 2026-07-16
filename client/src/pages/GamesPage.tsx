@@ -1,16 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { GameWithAttendance, Team } from "@turtleherder/shared";
+import type { GameWithAttendance } from "@turtleherder/shared";
 import { useState } from "react";
-import { Link, useOutletContext } from "react-router";
+import { useOutletContext } from "react-router";
 import { deleteGame, fetchGames } from "../api.js";
+import { Button, ButtonLink } from "../components/Button.js";
 import { formatGameDate, formatGameTime } from "../format.js";
+import type { TeamOutletContext } from "../TeamLayout.js";
+import styles from "./ListPage.module.css";
 
 // Manage games, ported from legacy/bobcats/games.php: past/future
-// sections with their own persisted toggle, one line per game with
+// sections with their own persisted toggle, one row per game with
 // Edit/Delete. The delete confirmation page becomes a confirm dialog
 // with the same wording.
 export function GamesPage() {
-  const team = useOutletContext<Team>();
+  const { team } = useOutletContext<TeamOutletContext>();
   const queryClient = useQueryClient();
   const storageKey = `pastGames:${team.slug}:manage`;
   const [showPast, setShowPast] = useState(
@@ -49,7 +52,7 @@ export function GamesPage() {
     (g) => new Date(g.startsAt).getTime() > now,
   );
 
-  function gameLine(game: GameWithAttendance) {
+  function gameRow(game: GameWithAttendance) {
     const date = formatGameDate(game.startsAt, team.timezone);
     const time = formatGameTime(game.startsAt, team.timezone);
     const label =
@@ -61,76 +64,63 @@ export function GamesPage() {
         ? `Do you really want to delete the bye week on ${date}?`
         : `Do you really want to delete the game against ${game.opponentName} on ${date} at ${time}?`;
     return (
-      <p key={game.id} className="list1">
-        {label} <Link to={`/${team.slug}/games/${game.id}/edit`}>Edit</Link>{" "}
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            if (window.confirm(confirmText)) {
-              deleteMutation.mutate(game.id);
-            }
-          }}
-        >
-          Delete
-        </a>
-      </p>
+      <li key={game.id} className={styles.row}>
+        <span className={styles.rowLabel}>{label}</span>
+        <span className={styles.rowActions}>
+          <ButtonLink
+            variant="secondary"
+            small
+            to={`/${team.slug}/games/${game.id}/edit`}
+          >
+            Edit
+          </ButtonLink>
+          <Button
+            variant="danger"
+            small
+            onClick={() => {
+              if (window.confirm(confirmText)) {
+                deleteMutation.mutate(game.id);
+              }
+            }}
+          >
+            Delete
+          </Button>
+        </span>
+      </li>
     );
   }
 
   return (
     <>
-      <p>
-        <span className="style1">
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              togglePast();
-            }}
-          >
-            {showPast ? "Hide past games" : "Show past games"}
-          </a>
-        </span>
-      </p>
+      <div className={styles.toggleBar}>
+        <Button variant="secondary" small onClick={togglePast}>
+          {showPast ? "Hide past games" : "Show past games"}
+        </Button>
+      </div>
 
       {showPast &&
         (past.length > 0 ? (
           <>
-            <p>
-              <span className="style1">
-                <strong>Past games:</strong>
-              </span>
-            </p>
-            {past.map(gameLine)}
+            <h2 className={styles.section}>Past games</h2>
+            <ul className={styles.list}>{past.map(gameRow)}</ul>
           </>
         ) : (
-          <p>
-            <span className="style1">
-              <strong>No past games.</strong>
-            </span>
-          </p>
+          <p className={styles.empty}>No past games.</p>
         ))}
 
       {future.length > 0 && (
         <>
-          <p>
-            <span className="style1">
-              <strong>Future games:</strong>
-            </span>
-          </p>
-          {future.map(gameLine)}
+          <h2 className={styles.section}>Future games</h2>
+          <ul className={styles.list}>{future.map(gameRow)}</ul>
         </>
       )}
 
       {deleteMutation.isError && (
         <p className="error">Error deleting game from database!</p>
       )}
-      <br />
       <p>
-        <Link to={`/${team.slug}/games/new`}>Add new game</Link>
+        <ButtonLink to={`/${team.slug}/games/new`}>Add new game</ButtonLink>
       </p>
-      <br />
     </>
   );
 }

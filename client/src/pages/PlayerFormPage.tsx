@@ -1,14 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PlayerInput, Team } from "@turtleherder/shared";
+import type { PlayerInput } from "@turtleherder/shared";
 import { useState } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
 import { createPlayer, fetchPlayers, updatePlayer } from "../api.js";
+import { Button } from "../components/Button.js";
+import type { TeamOutletContext } from "../TeamLayout.js";
+import styles from "./FormPage.module.css";
 
 // Add/edit a player, ported from legacy/bobcats/editplayer.php. The
 // original's gender radio buttons become the quota checkbox; after a
 // successful submit it shows the same follow-up links the original did.
 export function PlayerFormPage() {
-  const team = useOutletContext<Team>();
+  const { team } = useOutletContext<TeamOutletContext>();
   const { playerId } = useParams<"playerId">();
   const editing = playerId !== undefined;
   const queryClient = useQueryClient();
@@ -66,6 +69,7 @@ export function PlayerFormPage() {
 
   return (
     <form
+      className={styles.form}
       onSubmit={(e) => {
         e.preventDefault();
         mutation.mutate({
@@ -74,10 +78,8 @@ export function PlayerFormPage() {
         });
       }}
     >
-      <p>{editing ? "Update player info:" : "Enter new player:"}</p>
-
-      <label>
-        Name:{" "}
+      <label className={styles.field}>
+        Name
         <input
           type="text"
           value={shownName}
@@ -85,10 +87,8 @@ export function PlayerFormPage() {
           required
         />
       </label>
-      <br />
-      <br />
 
-      <label>
+      <label className={styles.checkboxField}>
         <input
           type="checkbox"
           checked={shownCounts}
@@ -96,10 +96,13 @@ export function PlayerFormPage() {
         />
         Counts toward the {team.quotaNounPlural} minimum
       </label>
-      <br />
-      <br />
 
-      <input type="submit" value="SUBMIT" disabled={mutation.isPending} />
+      <div className={styles.actions}>
+        <Button type="submit" disabled={mutation.isPending}>
+          Save
+        </Button>
+        <Link to={`/${team.slug}/players`}>Cancel</Link>
+      </div>
       {mutation.isError && (
         <p className="error">
           Error {editing ? "updating" : "adding"} player

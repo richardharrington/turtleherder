@@ -1,0 +1,19 @@
+/* A distinct, integrated card: the page-background gray rather than
+   surface white, no shadow. The border is the one deviation from
+   REDESIGN.md's "no borders" note — the card and page backgrounds are
+   the same color, so without it nothing would define the card. */
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.heading {
+  margin-bottom: 8px;
+}
+
+.question {
+  margin: 0 0 16px;
+}

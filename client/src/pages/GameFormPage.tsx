@@ -1,16 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { GameInput, Team } from "@turtleherder/shared";
+import type { GameInput } from "@turtleherder/shared";
 import { useState } from "react";
 import { Link, useOutletContext, useParams } from "react-router";
 import { createGame, fetchGame, updateGame } from "../api.js";
+import { Button } from "../components/Button.js";
 import { instantToLocalInput, localInputToInstant } from "../format.js";
+import type { TeamOutletContext } from "../TeamLayout.js";
+import styles from "./FormPage.module.css";
 
 // Add/edit a game, ported from legacy/bobcats/editgame.php. The six
-// date/time dropdowns become one datetime-local input, entered and
-// displayed in the team's timezone. Leaving the opponent blank makes
-// a bye week (the original displayed byes but couldn't create them).
+// date/time dropdowns are one styled native datetime-local input
+// (deliberately not a custom picker — REDESIGN.md set that ceiling),
+// entered and displayed in the team's timezone. Leaving the opponent
+// blank makes a bye week.
 export function GameFormPage() {
-  const team = useOutletContext<Team>();
+  const { team } = useOutletContext<TeamOutletContext>();
   const { gameId } = useParams<"gameId">();
   const editing = gameId !== undefined;
   const queryClient = useQueryClient();
@@ -66,6 +70,7 @@ export function GameFormPage() {
 
   return (
     <form
+      className={styles.form}
       onSubmit={(e) => {
         e.preventDefault();
         mutation.mutate({
@@ -75,32 +80,26 @@ export function GameFormPage() {
         });
       }}
     >
-      <p>{editing ? "Update game info:" : "Enter new game:"}</p>
-
-      <label>
-        Opposing team name (leave blank for a bye week):{" "}
+      <label className={styles.field}>
+        Opposing team name (leave blank for a bye week)
         <input
           type="text"
           value={shownName}
           onChange={(e) => setName(e.target.value)}
         />
       </label>
-      <br />
-      <br />
 
-      <label>
-        Opposing team color (optional):{" "}
+      <label className={styles.field}>
+        Opposing team color (optional)
         <input
           type="text"
           value={shownColor}
           onChange={(e) => setColor(e.target.value)}
         />
       </label>
-      <br />
-      <br />
 
-      <label>
-        <strong>Date and time:</strong>{" "}
+      <label className={styles.field}>
+        Date and time
         <input
           type="datetime-local"
           value={shownWhen}
@@ -108,10 +107,13 @@ export function GameFormPage() {
           required
         />
       </label>
-      <br />
-      <br />
 
-      <input type="submit" value="SUBMIT" disabled={mutation.isPending} />
+      <div className={styles.actions}>
+        <Button type="submit" disabled={mutation.isPending}>
+          Save
+        </Button>
+        <Link to={`/${team.slug}/games`}>Cancel</Link>
+      </div>
       {mutation.isError && (
         <p className="error">Error {editing ? "updating" : "adding"} game</p>
       )}

@@ -1,54 +1,120 @@
-/* Ported from legacy/bobcats/css/main.css — faithful to the 2010 look,
-   with the IE filter hacks and vendor-prefixed gradients dropped. */
+/* Design tokens and base styles for the mobile-first redesign.
+   Values come from REDESIGN.md's visual identity section; components
+   pick them up as custom properties from their own CSS modules. */
+
+:root {
+  /* Brand */
+  --green: #5ec942;
+  --green-dark: #059669; /* pressed/active state, success */
+
+  /* Neutrals */
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --surface-dim: #f3f4f6; /* secondary-button background */
+  --text: #1f2937;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --border-input: #d1d5db;
+
+  /* Status (refreshed for accessibility; same meanings as 2010) */
+  --status-yes: #10b981;
+  --status-no: #ef4444;
+  --status-maybe: #f59e0b;
+  --status-none: #6b7280;
+
+  /* Feedback */
+  --error: #dc2626;
+  --danger: #ef4444;
+
+  /* Shape */
+  --radius: 12px;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+  /* Type */
+  --font-body: "Inter Variable", system-ui, -apple-system, sans-serif;
+  --font-heading: Merriweather, Georgia, serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 
 body {
-  font: 100% Verdana, Arial, Helvetica, sans-serif;
   margin: 0;
-  padding: 0;
-  text-align: center; /* centers #container; overridden back to left inside it */
-  color: #000000;
-  min-height: 100vh;
-  background: linear-gradient(
-    to bottom,
-    rgba(180, 221, 144, 1) 0%,
-    rgba(131, 191, 86, 1) 50%,
-    rgba(180, 227, 145, 1) 100%
-  );
+  background: var(--bg);
+  color: var(--text);
+  /* 16px on all breakpoints (also prevents iOS zoom on input focus) */
+  font: 400 16px/1.5 var(--font-body);
 }
 
-.oneColElsCtr #container {
-  background: transparent;
-  width: 46em;
-  margin: 20px auto;
-  border: 0 solid #000000;
-  text-align: left;
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0 0 16px;
 }
 
-.oneColElsCtr #mainContent {
-  padding: 5px 10px 0 20px;
-  background-color: #fff;
-  border-radius: 20px;
-  box-shadow: 3px 3px 6px 3px rgba(14, 99, 25, 0.7);
+/* Major headings: page titles, game headers */
+h1,
+h3 {
+  font-size: 28px;
 }
 
-.style1 { font-size: small; }
-.style2 { font-size: x-small; }
-.style3 { font-size: large; }
-.style4 { font-size: medium; }
+/* Subheadings: "Future games", card headings */
+h2 {
+  font-size: 20px;
+}
 
-.player-coming { color: #009900; }
-.player-not-coming { color: #cc0000; }
-.player-maybe { color: #ff9900; }
-.player-not-responded { color: #000000; }
+@media (min-width: 640px) {
+  h1,
+  h3 {
+    font-size: 32px;
+  }
 
-.link-row { text-align: right; }
+  h2 {
+    font-size: 24px;
+  }
+}
 
-.list1 { padding-left: 20px; }
+a {
+  color: var(--green-dark);
+}
 
-.showing { display: inline; }
+label {
+  font-weight: 600;
+  font-size: 14px;
+}
 
-.hiding { display: none; }
+input[type="text"],
+input[type="datetime-local"] {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  min-height: 44px;
+}
 
-.error { color: #cc0000; }
+input[type="text"]:focus-visible,
+input[type="datetime-local"]:focus-visible {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(94, 201, 66, 0.35);
+}
 
-a { color: purple; }
+input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--green);
+}
+
+.error {
+  color: var(--error);
+  font-size: 14px;
+}

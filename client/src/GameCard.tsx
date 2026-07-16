@@ -1,4 +1,3 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   rosterReport,
   type AttendanceStatus,
@@ -6,12 +5,14 @@ import {
   type PlayerGameStatus,
   type Team,
 } from "@turtleherder/shared";
-import { putAttendance } from "./api.js";
+import { useAttendanceMutation } from "./attendance.js";
+import { SegmentedControl } from "./components/SegmentedControl.js";
 import { formatGameDate, formatGameTime } from "./format.js";
+import styles from "./GameCard.module.css";
 
-// One game as rendered by the original's printgame(): header, a line per
-// player, then the roster report. The original's per-player "Edit" link
-// (which led to changeattendance.php) is replaced by inline controls.
+// One game as a card: header, a row per player with the segmented
+// attendance control, then the roster report. Same content as the
+// original's printgame(), redesigned for thumbs.
 
 // Renders the report's **emphasis** markers as <strong>, as the original did.
 function Bold({ text }: { text: string }) {
@@ -25,19 +26,13 @@ function Bold({ text }: { text: string }) {
 }
 
 const STATUS_PHRASES: Record<AttendanceStatus | "none", [string, string]> = {
-  yes: ["will be playing", "player-coming"],
-  no: ["will not be playing", "player-not-coming"],
-  not_sure: ["isn't sure", "player-maybe"],
-  none: ["hasn't responded yet", "player-not-responded"],
+  yes: ["will be playing", styles.statusYes!],
+  no: ["will not be playing", styles.statusNo!],
+  not_sure: ["isn't sure", styles.statusMaybe!],
+  none: ["hasn't responded yet", styles.statusNone!],
 };
 
-const STATUS_CHOICES: Array<[AttendanceStatus, string]> = [
-  ["yes", "Yes"],
-  ["no", "No"],
-  ["not_sure", "Not sure"],
-];
-
-function PlayerLine({
+function PlayerRow({
   player,
   game,
   team,
@@ -46,37 +41,23 @@ function PlayerLine({
   game: GameWithAttendance;
   team: Team;
 }) {
-  const queryClient = useQueryClient();
-  const mutation = useMutation({
-    mutationFn: (status: AttendanceStatus) =>
-      putAttendance(team.slug, game.id, player.playerId, status),
-    onSuccess: () => {
-      // Refreshes both the schedule list and any single-game page.
-      return queryClient.invalidateQueries({ queryKey: ["games", team.slug] });
-    },
-  });
-
+  const mutation = useAttendanceMutation(team.slug, game.id, player.playerId);
   const [phrase, phraseClass] = STATUS_PHRASES[player.status ?? "none"];
 
   return (
-    <p className="list1">
-      {player.name} <span className={phraseClass}>{phrase}</span>.{" "}
-      <span className="style2">
-        {STATUS_CHOICES.map(([status, label]) => (
-          <label key={status} style={{ marginRight: "0.75em" }}>
-            <input
-              type="radio"
-              name={`attendance-${game.id}-${player.playerId}`}
-              checked={player.status === status}
-              disabled={mutation.isPending}
-              onChange={() => mutation.mutate(status)}
-            />
-            {label}
-          </label>
-        ))}
+    <li className={styles.playerRow} data-testid="player-row">
+      <p className={styles.playerLine}>
+        <span className={styles.playerName}>{player.name}</span>{" "}
+        <span className={phraseClass}>{phrase}</span>.
         {mutation.isError && <span className="error"> Error saving.</span>}
-      </span>
-    </p>
+      </p>
+      <SegmentedControl
+        name={`attendance-${game.id}-${player.playerId}`}
+        value={player.status}
+        disabled={mutation.isPending}
+        onChange={(status) => mutation.mutate(status)}
+      />
+    </li>
   );
 }
 
@@ -91,15 +72,10 @@ export function GameCard({
 
   if (game.opponentName === null) {
     return (
-      <>
-        <p>
-          <span className="style3">
-            <strong>{date}. </strong>
-          </span>
-          <span className="style4">Bye week.</span>
-        </p>
-        <p>&nbsp;</p>
-      </>
+      <section className={styles.card}>
+        <h3 className={styles.when}>{date}</h3>
+        <p className={styles.bye}>Bye week.</p>
+      </section>
     );
   }
 
@@ -115,30 +91,29 @@ export function GameCard({
   });
 
   return (
-    <>
-      <p>
-        <span className="style3">
-          <strong>{date} </strong>
-        </span>
-        <span className="style4">
-          at {time} against {game.opponentName}
-          {game.opponentColor && <> (the {game.opponentColor} team)</>}:
-        </span>
+    <section className={styles.card}>
+      <h3 className={styles.when}>{date}</h3>
+      <p className={styles.versus}>
+        at {time} against {game.opponentName}
+        {game.opponentColor && <> (the {game.opponentColor} team)</>}:
       </p>
-      {game.players.map((player) => (
-        <PlayerLine
-          key={player.playerId}
-          player={player}
-          game={game}
-          team={team}
-        />
-      ))}
-      {report.map((sentence) => (
-        <p key={sentence}>
-          <Bold text={sentence} />
-        </p>
-      ))}
-      <p>&nbsp;</p>
-    </>
+      <ul className={styles.roster}>
+        {game.players.map((player) => (
+          <PlayerRow
+            key={player.playerId}
+            player={player}
+            game={game}
+            team={team}
+          />
+        ))}
+      </ul>
+      <div className={styles.report}>
+        {report.map((sentence) => (
+          <p key={sentence}>
+            <Bold text={sentence} />
+          </p>
+        ))}
+      </div>
+    </section>
   );
 }
