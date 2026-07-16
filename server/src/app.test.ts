@@ -76,6 +76,48 @@ describe("GET /api/health", () => {
   });
 });
 
+describe("GET /join/:token", () => {
+  it("exchanges a valid token for a session cookie and redirects home", async () => {
+    const res = await app.request("/join/carol-token");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/testcats");
+
+    const setCookie = res.headers.get("set-cookie")!;
+    expect(setCookie).toContain("th_session=");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=Lax");
+    expect(setCookie).toContain("Path=/");
+
+    // The cookie it set is a working session for the team's API.
+    const sessionId = /th_session=([^;]+)/.exec(setCookie)![1]!;
+    const api = await app.request("/api/teams/testcats", {
+      headers: { cookie: `th_session=${sessionId}` },
+    });
+    expect(api.status).toBe(200);
+  });
+
+  it("redirects an unknown token to /?join=invalid without a cookie", async () => {
+    const res = await app.request("/join/no-such-token");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/?join=invalid");
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("prunes expired sessions as a side effect", async () => {
+    await pool.query(
+      `INSERT INTO session (id, player_id, created_at, last_seen_at)
+       VALUES ('prune-me', $1, now() - interval '400 days',
+               now() - interval '400 days')`,
+      [playerIds[0]],
+    );
+    await app.request("/join/no-such-token");
+    const { rows } = await pool.query(
+      `SELECT 1 FROM session WHERE id = 'prune-me'`,
+    );
+    expect(rows).toHaveLength(0);
+  });
+});
+
 describe("GET /api/teams/:slug", () => {
   it("returns the team", async () => {
     const res = await app.request("/api/teams/testcats");

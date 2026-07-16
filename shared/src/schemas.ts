@@ -67,6 +67,13 @@ export const attendanceInputSchema = z.object({
   status: attendanceStatusSchema,
 });
 
+// ---- Auth ----
+
+// Where GET /join/<token> sends a browser holding an invalid or revoked
+// token. Reveals nothing about any team; the wall page can show
+// "that link didn't work — ask your captain for a fresh one."
+export const INVALID_JOIN_REDIRECT = "/?join=invalid";
+
 // ---- View models ----
 
 // A player's row within one game on the schedule page.

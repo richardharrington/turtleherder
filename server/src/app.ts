@@ -2,9 +2,12 @@ import { zValidator } from "@hono/zod-validator";
 import {
   attendanceInputSchema,
   gameInputSchema,
+  INVALID_JOIN_REDIRECT,
   playerInputSchema,
 } from "@turtleherder/shared";
 import { Hono } from "hono";
+import { setSessionCookie } from "./auth.js";
+import { findPlayerByJoinToken } from "./data/access.js";
 import { setAttendance } from "./data/attendance.js";
 import {
   createGame,
@@ -19,6 +22,7 @@ import {
   getPlayersForTeam,
   updatePlayer,
 } from "./data/players.js";
+import { createSession, pruneExpiredSessions } from "./data/sessions.js";
 import { getTeamBySlug } from "./data/teams.js";
 
 function parseId(raw: string): number | null {
@@ -27,6 +31,20 @@ function parseId(raw: string): number | null {
 
 export const app = new Hono()
   .get("/api/health", (c) => c.json({ ok: true }))
+
+  // ---- Join: exchange a token for a session cookie ----
+  // Lives outside /api: it's a browser navigation, not a JSON endpoint.
+
+  .get("/join/:token", async (c) => {
+    await pruneExpiredSessions();
+    const found = await findPlayerByJoinToken(c.req.param("token"));
+    if (!found) {
+      // Same redirect for unknown and revoked tokens; leaks nothing.
+      return c.redirect(INVALID_JOIN_REDIRECT);
+    }
+    setSessionCookie(c, await createSession(found.playerId));
+    return c.redirect(`/${found.teamSlug}`);
+  })
 
   // ---- Teams ----
 
