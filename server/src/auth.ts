@@ -57,3 +57,12 @@ export const requireSession: MiddlewareHandler<AuthEnv> = async (c, next) => {
   });
   return next();
 };
+
+// Access control itself is the one thing gated harder than the rest of the
+// wall: captains only. Runs after requireSession.
+export const requireCaptain: MiddlewareHandler<AuthEnv> = async (c, next) => {
+  if (!c.get("auth").isCaptain) {
+    return c.json({ error: "forbidden" }, 403);
+  }
+  return next();
+};

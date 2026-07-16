@@ -10,7 +10,9 @@ process.env.DATABASE_URL =
 import type {
   Game,
   GameWithAttendance,
+  Me,
   Player,
+  PlayerAccess,
   Team,
 } from "@turtleherder/shared";
 import { runner } from "node-pg-migrate";
@@ -136,6 +138,8 @@ describe("the wall", () => {
       "/api/teams/testcats",
       "/api/teams/testcats/games",
       "/api/teams/testcats/players",
+      "/api/teams/testcats/me",
+      "/api/teams/testcats/access",
     ]) {
       const res = await get(url, null);
       expect(res.status).toBe(401);
@@ -244,6 +248,23 @@ describe("rolling session renewal", () => {
     const res = await get("/api/teams/testcats"); // alice-session, seen just now
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toBeNull();
+  });
+});
+
+describe("GET /api/teams/:slug/me", () => {
+  it("returns the signed-in captain", async () => {
+    const res = await get("/api/teams/testcats/me");
+    expect(res.status).toBe(200);
+    expect((await res.json()) as Me).toEqual({
+      playerId: playerIds[0],
+      name: "Alice",
+      isCaptain: true,
+    });
+  });
+
+  it("returns a non-captain as such", async () => {
+    const res = await get("/api/teams/testcats/me", BOB);
+    expect(((await res.json()) as Me).isCaptain).toBe(false);
   });
 });
 
@@ -364,6 +385,13 @@ describe("player CRUD", () => {
     const davina = wombats.players.find((p) => p.playerId === dave.id);
     expect(davina).toMatchObject({ name: "Davina", status: null });
 
+    // New players get a join token automatically.
+    const access = await get("/api/teams/testcats/access");
+    const davinaAccess = ((await access.json()) as PlayerAccess[]).find(
+      (a) => a.playerId === dave.id,
+    );
+    expect(davinaAccess!.joinToken).toBeTruthy();
+
     const deleted = await app.request(
       `/api/teams/testcats/players/${dave.id}`,
       { method: "DELETE", headers: { cookie: ALICE } },
@@ -449,5 +477,108 @@ describe("game CRUD", () => {
       startsAt: "next tuesday",
     });
     expect(res.status).toBe(400);
+  });
+});
+
+// Runs last: regenerating/revoking kills sessions other suites rely on.
+describe("access management (captains only)", () => {
+  it("403s a non-captain on every access endpoint", async () => {
+    const list = await get("/api/teams/testcats/access", BOB);
+    expect(list.status).toBe(403);
+    expect(await list.json()).toEqual({ error: "forbidden" });
+
+    for (const verb of ["regenerate-token", "revoke-token"]) {
+      const res = await app.request(
+        `/api/teams/testcats/players/${playerIds[2]}/${verb}`,
+        { method: "POST", headers: { cookie: BOB } },
+      );
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it("lists every player's current join link, alphabetically", async () => {
+    const res = await get("/api/teams/testcats/access");
+    expect(res.status).toBe(200);
+    const access = (await res.json()) as PlayerAccess[];
+    expect(access.map((a) => a.name)).toEqual(["Alice", "Bob", "Carol"]);
+    expect(access.map((a) => a.joinToken)).toEqual([
+      "alice-token",
+      "bob-token",
+      "carol-token",
+    ]);
+    expect(access.every((a) => a.revokedAt === null)).toBe(true);
+  });
+
+  it("regenerates a token and kills the player's sessions", async () => {
+    const res = await app.request(
+      `/api/teams/testcats/players/${playerIds[1]}/regenerate-token`,
+      { method: "POST", headers: { cookie: ALICE } },
+    );
+    expect(res.status).toBe(200);
+    const access = (await res.json()) as PlayerAccess;
+    expect(access.joinToken).toBeTruthy();
+    expect(access.joinToken).not.toBe("bob-token");
+    expect(access.revokedAt).toBeNull();
+
+    // The old link is dead, the new one works.
+    const oldJoin = await app.request("/join/bob-token");
+    expect(oldJoin.headers.get("location")).toBe("/?join=invalid");
+    const newJoin = await app.request(`/join/${access.joinToken}`);
+    expect(newJoin.headers.get("location")).toBe("/testcats");
+
+    // Bob's existing session was killed.
+    const asBob = await get("/api/teams/testcats", BOB);
+    expect(asBob.status).toBe(401);
+  });
+
+  it("revokes a token and kills the player's sessions", async () => {
+    const res = await app.request(
+      `/api/teams/testcats/players/${playerIds[2]}/revoke-token`,
+      { method: "POST", headers: { cookie: ALICE } },
+    );
+    expect(res.status).toBe(200);
+    const access = (await res.json()) as PlayerAccess;
+    expect(access.joinToken).toBeNull();
+    expect(access.revokedAt).not.toBeNull();
+
+    const join = await app.request("/join/carol-token");
+    expect(join.headers.get("location")).toBe("/?join=invalid");
+
+    // The access list withholds the revoked token too.
+    const list = await get("/api/teams/testcats/access");
+    const carol = ((await list.json()) as PlayerAccess[]).find(
+      (a) => a.playerId === playerIds[2],
+    );
+    expect(carol!.joinToken).toBeNull();
+
+    // A repeat revoke keeps the original revocation time.
+    const again = await app.request(
+      `/api/teams/testcats/players/${playerIds[2]}/revoke-token`,
+      { method: "POST", headers: { cookie: ALICE } },
+    );
+    expect(((await again.json()) as PlayerAccess).revokedAt).toBe(
+      access.revokedAt,
+    );
+  });
+
+  it("regenerating a revoked player restores access", async () => {
+    const res = await app.request(
+      `/api/teams/testcats/players/${playerIds[2]}/regenerate-token`,
+      { method: "POST", headers: { cookie: ALICE } },
+    );
+    const access = (await res.json()) as PlayerAccess;
+    expect(access.joinToken).toBeTruthy();
+    expect(access.revokedAt).toBeNull();
+
+    const join = await app.request(`/join/${access.joinToken}`);
+    expect(join.headers.get("location")).toBe("/testcats");
+  });
+
+  it("404s for a player on another team", async () => {
+    const res = await app.request(
+      `/api/teams/testcats/players/${zedId}/regenerate-token`,
+      { method: "POST", headers: { cookie: ALICE } },
+    );
+    expect(res.status).toBe(404);
   });
 });

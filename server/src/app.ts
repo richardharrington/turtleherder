@@ -6,8 +6,18 @@ import {
   playerInputSchema,
 } from "@turtleherder/shared";
 import { Hono } from "hono";
-import { type AuthEnv, requireSession, setSessionCookie } from "./auth.js";
-import { findPlayerByJoinToken } from "./data/access.js";
+import {
+  type AuthEnv,
+  requireCaptain,
+  requireSession,
+  setSessionCookie,
+} from "./auth.js";
+import {
+  findPlayerByJoinToken,
+  getAccessList,
+  regenerateToken,
+  revokeToken,
+} from "./data/access.js";
 import { setAttendance } from "./data/attendance.js";
 import {
   createGame,
@@ -52,12 +62,50 @@ export const app = new Hono<AuthEnv>()
 
   .use("/api/teams/:slug", requireSession)
   .use("/api/teams/:slug/*", requireSession)
+  .use("/api/teams/:slug/access", requireCaptain)
+  .use("/api/teams/:slug/players/:playerId/regenerate-token", requireCaptain)
+  .use("/api/teams/:slug/players/:playerId/revoke-token", requireCaptain)
 
   // ---- Teams ----
 
   .get("/api/teams/:slug", async (c) =>
     c.json(await getTeamById(c.get("auth").teamId)),
   )
+
+  .get("/api/teams/:slug/me", (c) => {
+    const { playerId, playerName, isCaptain } = c.get("auth");
+    return c.json({ playerId, name: playerName, isCaptain });
+  })
+
+  // ---- Access management (captains only) ----
+
+  .get("/api/teams/:slug/access", async (c) =>
+    c.json(await getAccessList(c.get("auth").teamId)),
+  )
+
+  .post("/api/teams/:slug/players/:playerId/regenerate-token", async (c) => {
+    const playerId = parseId(c.req.param("playerId"));
+    const access =
+      playerId === null
+        ? null
+        : await regenerateToken(c.get("auth").teamId, playerId);
+    if (!access) {
+      return c.json({ error: "player not found" }, 404);
+    }
+    return c.json(access);
+  })
+
+  .post("/api/teams/:slug/players/:playerId/revoke-token", async (c) => {
+    const playerId = parseId(c.req.param("playerId"));
+    const access =
+      playerId === null
+        ? null
+        : await revokeToken(c.get("auth").teamId, playerId);
+    if (!access) {
+      return c.json({ error: "player not found" }, 404);
+    }
+    return c.json(access);
+  })
 
   // ---- Players ----
 

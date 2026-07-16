@@ -77,10 +77,36 @@ export const unauthorizedErrorSchema = z.object({
   error: z.literal("unauthorized"),
 });
 
+// A signed-in non-captain calling a captain-only endpoint.
+export const forbiddenErrorSchema = z.object({
+  error: z.literal("forbidden"),
+});
+
 // Where GET /join/<token> sends a browser holding an invalid or revoked
 // token. Reveals nothing about any team; the wall page can show
 // "that link didn't work — ask your captain for a fresh one."
 export const INVALID_JOIN_REDIRECT = "/?join=invalid";
+
+// The signed-in player: GET /api/teams/:slug/me.
+export const meSchema = z.object({
+  playerId: z.number().int(),
+  name: z.string(),
+  isCaptain: z.boolean(),
+});
+
+export type Me = z.infer<typeof meSchema>;
+
+// One row of the captains' manage-access page: GET /api/teams/:slug/access.
+// A revoked player keeps their row but the token is withheld until a captain
+// regenerates (POST …/players/:id/regenerate-token; revoke is …/revoke-token).
+export const playerAccessSchema = z.object({
+  playerId: z.number().int(),
+  name: z.string(),
+  joinToken: z.string().nullable(), // null = revoked
+  revokedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+
+export type PlayerAccess = z.infer<typeof playerAccessSchema>;
 
 // ---- View models ----
 

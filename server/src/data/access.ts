@@ -1,10 +1,29 @@
 import { randomBytes } from "node:crypto";
+import type { PlayerAccess } from "@turtleherder/shared";
 import { pool } from "../db.js";
 
 // 128-bit base64url, per DESIGN.md. Stored plaintext, deliberately:
 // captains can always re-copy a player's current link.
 export function generateJoinToken(): string {
   return randomBytes(16).toString("base64url");
+}
+
+interface AccessRow {
+  id: number;
+  name: string;
+  join_token: string;
+  join_token_revoked_at: Date | null;
+}
+
+function toPlayerAccess(row: AccessRow): PlayerAccess {
+  return {
+    playerId: row.id,
+    name: row.name,
+    // A revoked token stays in the row (so revokedAt is reportable) but is
+    // never handed out — it's dead until a captain regenerates.
+    joinToken: row.join_token_revoked_at ? null : row.join_token,
+    revokedAt: row.join_token_revoked_at?.toISOString() ?? null,
+  };
 }
 
 export async function findPlayerByJoinToken(
@@ -19,4 +38,76 @@ export async function findPlayerByJoinToken(
   );
   const row = rows[0];
   return row ? { playerId: row.player_id, teamSlug: row.team_slug } : null;
+}
+
+export async function getAccessList(teamId: number): Promise<PlayerAccess[]> {
+  const { rows } = await pool.query<AccessRow>(
+    `SELECT id, name, join_token, join_token_revoked_at
+     FROM player WHERE team_id = $1
+     ORDER BY name ASC`,
+    [teamId],
+  );
+  return rows.map(toPlayerAccess);
+}
+
+// Regenerate and revoke both kill the player's sessions in the same
+// transaction — cutting one person's access is the whole point of auth.
+
+export async function regenerateToken(
+  teamId: number,
+  playerId: number,
+): Promise<PlayerAccess | null> {
+  return updateTokenAndKillSessions(
+    teamId,
+    playerId,
+    `UPDATE player SET join_token = $3, join_token_revoked_at = NULL
+     WHERE id = $2 AND team_id = $1
+     RETURNING id, name, join_token, join_token_revoked_at`,
+    [generateJoinToken()],
+  );
+}
+
+export async function revokeToken(
+  teamId: number,
+  playerId: number,
+): Promise<PlayerAccess | null> {
+  // COALESCE keeps the original revocation time on a repeat revoke.
+  return updateTokenAndKillSessions(
+    teamId,
+    playerId,
+    `UPDATE player
+     SET join_token_revoked_at = COALESCE(join_token_revoked_at, now())
+     WHERE id = $2 AND team_id = $1
+     RETURNING id, name, join_token, join_token_revoked_at`,
+  );
+}
+
+async function updateTokenAndKillSessions(
+  teamId: number,
+  playerId: number,
+  updateSql: string,
+  extraParams: unknown[] = [],
+): Promise<PlayerAccess | null> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows } = await client.query<AccessRow>(updateSql, [
+      teamId,
+      playerId,
+      ...extraParams,
+    ]);
+    const row = rows[0];
+    if (!row) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+    await client.query(`DELETE FROM session WHERE player_id = $1`, [playerId]);
+    await client.query("COMMIT");
+    return toPlayerAccess(row);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
