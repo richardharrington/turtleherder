@@ -42,6 +42,25 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm build
+      # Nothing else exercises the bundle: unit, integration, and e2e all run
+      # TypeScript source through tsx/vitest. This boots what Railway actually
+      # boots, so bundle-only breakage (a require() esbuild can't resolve at
+      # runtime, a client path that moves) fails here instead of reaching the
+      # team. Serving / proves the bundle still finds client/dist.
+      - name: Smoke-check the server bundle
+        env:
+          NODE_ENV: production
+          PORT: "3000"
+        run: |
+          export DATABASE_URL="$TEST_DATABASE_URL"
+          pnpm start &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/api/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:3000/api/health | grep -q '"ok":true'
+          curl -sf http://127.0.0.1:3000/ | grep -q '<div id="root">'
+          echo "bundle boots, serves /api/health and the client"
       - run: pnpm test
 
   e2e:

@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
-    "start": "tsx --env-file-if-exists=.env src/index.ts",
+    "build": "node build.mjs",
+    "start": "node --env-file-if-exists=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "db:migrate": "tsx --env-file-if-exists=.env src/migrate.ts up",
     "db:migrate:down": "tsx --env-file-if-exists=.env src/migrate.ts down",
-    "db:seed": "tsx --env-file-if-exists=.env src/seed.ts"
+    "db:seed": "tsx --env-file-if-exists=.env src/seed.ts",
+    "db:create-team": "tsx --env-file-if-exists=.env src/create-team.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",
@@ -25,6 +27,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.0",
+    "esbuild": "^0.28.1",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"
   }
