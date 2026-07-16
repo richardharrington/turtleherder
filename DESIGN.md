@@ -285,3 +285,15 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Testing | Unit + API integration + Playwright e2e | |
 | Dev env | Docker Compose Postgres + pnpm | |
 | Legacy PHP | Moved to `legacy/`, kept as reference spec | Delete whenever |
+
+### Decision log (auth implementation interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Rolling renewal | Throttled: at most one `last_seen_at` write + cookie re-issue per hour | Vs. write-on-every-request; expiry up to an hour "early" on a 1-year window is meaningless |
+| Session cleanup | Validity checked on read; expired rows deleted on every `/join` | No scheduler, table stays clean |
+| Unauthorized contract | Uniform `401 {"error":"unauthorized"}`, session checked before team lookup | Signed-out / wrong team / unknown slug indistinguishable — no enumeration. Non-captain on captain endpoint: `403 {"error":"forbidden"}` |
+| Viewer identity | Separate `GET /api/teams/:slug/me` | Keeps team schema auth-free; backs the personal question |
+| Revoked-token modeling | Token kept + `join_token_revoked_at` stamp | Manage-access page can show *when*; regenerate clears the stamp |
+| Captain API shape | `GET …/access` list + explicit `POST …/regenerate-token` / `…/revoke-token` verbs | `DELETE …/token` would misread as deleting the row |
+| Invalid `/join` | 302 to `/?join=invalid` | Distinguishable but leak-free; wall can say "ask your captain for a fresh link" |
