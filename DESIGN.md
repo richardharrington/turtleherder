@@ -418,7 +418,9 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
    with its own Postgres service container (Actions can't mount the initdb
    script, so the service creates `turtleherder_test` directly via
    `POSTGRES_DB`). Node 24 pinned via `engines` + `.nvmrc`; Playwright
-   traces are uploaded as an artifact on failure.
+   traces are uploaded as an artifact on failure. Branch protection on
+   master requires both jobs green to merge a PR; admin direct pushes
+   bypass (a repo setting, not visible in the repo).
 5. **Deploy** — Railway, with **turtleherder.com pointed at it from day one**
    so the team's saved links (join links especially) never change. Before
    repointing: verify nobody still depends on the old PHP site there. Seed the
