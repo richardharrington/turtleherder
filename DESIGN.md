@@ -7,7 +7,8 @@ the [auth design](#auth-design); a third the [roadmap](#roadmap) — the
 priority order for everything after feature parity; a fourth the auth
 backend's implementation details as that backend was built; a fifth settled
 the mobile-first redesign's visual and UX direction, recorded in the
-standalone [`REDESIGN.md`](REDESIGN.md) rather than here (July 2026
+standalone [`REDESIGN.md`](REDESIGN.md) rather than here; a sixth settled
+the front-end push's implementation details as it was built (July 2026
 throughout).
 
 ## Goal
@@ -15,11 +16,12 @@ throughout).
 A **feature-complete copy of the original app**, shipped for real use. The legacy PHP in
 `legacy/` is the reference for behavior. Deliberately deferred to later versions:
 
-- Authentication / access control UI — the design and backend are done (see
-  below); the wall page, manage-access page, and personal question arrive in
-  the front-end push (see [Roadmap](#roadmap)), before real deployment
-- Improved calendar/date picking beyond the platform default — since folded
-  into the pre-launch mobile-first redesign (see [Roadmap](#roadmap))
+- Authentication / access control UI — ✅ no longer deferred: the wall page,
+  manage-access page, and personal question shipped with the front-end push
+  (milestone 3, July 2026)
+- Improved calendar/date picking beyond the platform default — resolved by
+  the redesign: the ceiling is a well-styled native `datetime-local` input
+  (shipped in milestone 3); a custom picker remains a possible future upgrade
 - Team creation & settings UI (self-serve signup)
 - A public landing page at `/` (the old `index.html`'s role), which is also the
   home for the **tip jar**: the app stays free with no freemium tier, ever; a
@@ -146,8 +148,8 @@ Full pyramid:
 ## Auth design
 
 Settled in a second design interview (July 2026). The backend half was built
-as its own milestone (July 2026); the UI arrives with the front-end push,
-before any real deployment. Guiding constraint: the app's entire value
+as its own milestone (July 2026); the UI shipped with the front-end push
+(milestone 3, July 2026). Guiding constraint: the app's entire value
 is being *lower-friction than email*, so every unit of auth friction spends the
 product's reason to exist.
 
@@ -192,8 +194,8 @@ player's current link. Hashing would force regenerate-only UX, and a database
 compromise of this app already exposes everything the tokens protect. Session
 ids are random and stored likewise.
 
-**The personal question (designed here; built with auth's UI in the
-front-end push):** the one place the
+**The personal question (designed here; built in the front-end push,
+July 2026):** the one place the
 UI does use the session's identity. The original `changeattendance.php` greeted
 the player personally:
 
@@ -226,8 +228,9 @@ schedule and per-player enforcement remain cheap future options.
 ### Auth implementation notes (milestone 1, backend built July 2026)
 
 The backend half is built; the UI (wall page, manage-access page, personal
-question) waits for the front-end push milestone. Implementation decisions,
-settled in a fourth interview:
+question) was built in the front-end push milestone — see
+[Front-end implementation notes](#front-end-implementation-notes-milestone-3-built-july-2026).
+Implementation decisions, settled in a fourth interview:
 
 - **Tokens & sessions:** join tokens are 128-bit `crypto.randomBytes`
   base64url; session ids 256-bit. Cookie `th_session`: httpOnly,
@@ -263,6 +266,56 @@ settled in a fourth interview:
   `storageState` file so every test browses as fixture-Alice. The dev seed
   prints captain Alison Bechdel's join link.
 
+### Front-end implementation notes (milestone 3, built July 2026)
+
+The full client rebuild against [`REDESIGN.md`](REDESIGN.md), plus auth's UI
+and the PWA shell. Implementation decisions, settled in a sixth interview:
+
+- **Styling:** CSS Modules (Vite-native, zero new dependencies), one
+  `.module.css` per component; REDESIGN.md's tokens live as CSS custom
+  properties in `client/src/main.css` alongside base element styles. Fonts
+  are self-hosted via `@fontsource` (Inter variable for body, Merriweather
+  700 for headings) — no external requests, works as an installed PWA. Nav
+  icons come from `lucide-react`.
+- **The wall's client half:** `api.ts` throws a typed `ApiError` carrying
+  the HTTP status; a global TanStack Query `QueryCache`/`MutationCache`
+  `onError` listener catches a 401 from *any* query or mutation — first
+  visit, expired session, or a captain revoking mid-browse — and
+  hard-navigates to the wall so all client state starts clean. The bounce
+  URL is `/?from=<slug>`, echoing the path the visitor themselves typed
+  (leak-free), so the wall can explain rather than guess.
+- **The wall page at `/`, four behaviors:** signed out → the minimal
+  banner, no interactive elements, identical for every cause;
+  `?join=invalid` → the "that link didn't work" variant; a **direct
+  landing** with a working session (PWA launch — `start_url` is `/` — or a
+  typed root URL) → auto-forward to the last-visited team, remembered as
+  `lastTeamSlug` in localStorage (REDESIGN.md's "root redirects to team");
+  **bounced** (`?from=`) while holding a session for a *different* team →
+  no silent substitution — the banner plus a "you can only be signed into
+  one team at a time" note echoing the typed slug, and a visible
+  "Go to [team] →" link to the team the session does work for. That last
+  case is a graceful patch for the parked multi-team future, not its
+  answer (a real fix needs multi-identity sessions and a switcher).
+- **Manage-access:** REDESIGN.md contradicts itself on the table
+  breakpoint (its component section says ≥640px; its responsive section
+  and decision log say ≥1024px) — resolved to **≥1024px** for the
+  all-links-visible table, reveal-on-tap below. Regenerate and revoke
+  both confirm first, since both kill the player's sessions.
+- **Personal question card:** one deliberate deviation from REDESIGN.md —
+  a 1px border was added, because the spec gives the card the same
+  background as the page (`#f9fafb`) and "no borders", which together
+  would make it invisible.
+- **No service worker:** the PWA shell is manifest + icons + standalone
+  display only, per REDESIGN.md's PWA section; the app is live-data and
+  installability doesn't require one. The turtle icons (white silhouette
+  on `#5ec942`, 512/192/180px + SVG favicon) are generated assets in
+  `client/public/`.
+- **E2e:** the suite grew to 13 tests. `auth.spec.ts` opts out of the
+  shared `storageState` (browses signed out) to cover the wall, the
+  invalid-join variant, and the join-token cookie exchange; captain flows
+  (access page, regenerate, revoke) and the cross-team bounce ride along
+  in `app.spec.ts` as Alice.
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -289,11 +342,13 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
    display) so the team gets a home-screen icon from day one. Surfaced one
    unscoped need along the way — captains managing more than one team — see
    Parking lot.
-3. **One front-end push** — every page built once in the new design language:
-   the existing pages plus auth's UI (the friendly wall, the captains'
-   manage-access page, the personal question at the top of home and
-   single-game pages). Playwright suite updated to cover the wall and join
-   flow.
+3. **One front-end push** — ✅ done (July 2026). Every page built once in
+   the new design language: the existing pages plus auth's UI (the friendly
+   wall, the captains' manage-access page, the personal question at the top
+   of home and single-game pages) and the PWA shell. Playwright suite
+   updated to cover the wall and join flow (13 tests). Implementation
+   decisions in
+   [Front-end implementation notes](#front-end-implementation-notes-milestone-3-built-july-2026).
 4. **CI** — GitHub Actions running all three suites on push, before a real
    team depends on master.
 5. **Deploy** — Railway, with **turtleherder.com pointed at it from day one**
@@ -364,3 +419,16 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Revoked-token modeling | Token kept + `join_token_revoked_at` stamp | Manage-access page can show *when*; regenerate clears the stamp |
 | Captain API shape | `GET …/access` list + explicit `POST …/regenerate-token` / `…/revoke-token` verbs | `DELETE …/token` would misread as deleting the row |
 | Invalid `/join` | 302 to `/?join=invalid` | Distinguishable but leak-free; wall can say "ask your captain for a fresh link" |
+
+## Decision log (front-end push interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| CSS tooling | CSS Modules + token custom properties | Vite-native, zero new deps; tokens global in `main.css`, scoping per component |
+| Wall location | Bounce to `/` on 401 | One canonical wall URL — where dead join links already redirect |
+| 401 detection | Global QueryCache/MutationCache listener + typed `ApiError` | Any 401 anywhere walls immediately, including mid-session revocation |
+| Cross-team bounce | Banner + "one team at a time" note + visible link — never a silent forward | The note echoes the visitor's own typed slug; leak-free. Direct landings on `/` still auto-forward (PWA start URL) |
+| Fonts | Self-hosted `@fontsource` Inter + Merriweather | No external requests; PWA-friendly |
+| Nav icons | `lucide-react` | Designed set, tree-shakes to ~1–2KB per icon |
+| Service worker | None | Manifest + icons + standalone only, per REDESIGN.md; app is live-data |
+| Manage-access table breakpoint | ≥1024px | REDESIGN.md self-contradicts (640 vs 1024); its decision log and the responsive section say 1024 |
