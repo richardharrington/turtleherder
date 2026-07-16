@@ -1,10 +1,54 @@
 // Development seed: wipes all data and recreates the demo "bobcats" team,
 // mirroring the example team on the original turtleherder.com.
+//
+// Because it opens with a TRUNCATE, it refuses to run anywhere that isn't
+// obviously a development database. Real teams are created by create-team.ts,
+// which only ever inserts.
 
 import { generateJoinToken } from "./data/access.js";
 import { pool } from "./db.js";
 
 const DAY = 24 * 60 * 60 * 1000;
+
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+function fail(message: string): never {
+  console.error(message);
+  process.exit(1);
+}
+
+function databaseHost(url: string): string | null {
+  try {
+    // Strips the brackets IPv6 authorities carry, so ::1 compares cleanly.
+    return new URL(url).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+// NODE_ENV catches running *in* production. The host check catches the
+// likelier accident: running from a laptop with DATABASE_URL aimed at the
+// production database, where NODE_ENV is unset and the first guard waves you
+// straight through to the TRUNCATE.
+if (process.env.NODE_ENV === "production") {
+  fail(
+    "Refusing to run the dev seed with NODE_ENV=production: it TRUNCATEs every table.\n" +
+      "Create a real team with `pnpm db:create-team` instead.",
+  );
+}
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) fail("DATABASE_URL is not set");
+
+const host = databaseHost(databaseUrl);
+if (process.env.ALLOW_REMOTE_SEED !== "1" && (host === null || !LOCAL_HOSTS.has(host))) {
+  fail(
+    `Refusing to run the dev seed against ${host === null ? "an unparseable DATABASE_URL" : `'${host}'`}: ` +
+      "it TRUNCATEs every table, and this is not a local database.\n" +
+      "Create a real team with `pnpm db:create-team` instead.\n" +
+      "If you really mean it (a scratch database elsewhere), set ALLOW_REMOTE_SEED=1.",
+  );
+}
 
 function daysFromNow(days: number, hour: number, minute = 0): Date {
   const d = new Date(Date.now() + days * DAY);

@@ -14,12 +14,31 @@
 > ```
 >
 > **Deploying (Railway):** the repo is deploy-ready as a single service —
-> `railway.json` builds the client, runs migrations pre-deploy, and starts the
-> server, which also serves the built client. Create a Railway project from
-> this repo, add a Postgres service, and set `DATABASE_URL` on the app service
-> to `${{Postgres.DATABASE_URL}}`. Railway provides `PORT` automatically.
-> Seed a team by running `pnpm db:seed` with `DATABASE_URL` pointed at the
-> Railway database (or insert your real team with SQL).
+> `railway.json` builds the client and bundles the server, runs migrations as
+> the pre-deploy step, and starts the server, which also serves the built
+> client. Create a Railway project from this repo, add a Postgres service, and
+> set three variables on the app service (`railway.json` can't hold variables,
+> only commands):
+>
+> ```sh
+> DATABASE_URL=${{Postgres.DATABASE_URL}}
+> NODE_ENV=production           # the session cookie's Secure flag keys off this
+> APP_ORIGIN=https://your-domain.example   # so scripts print real join links
+> ```
+>
+> Railway provides `PORT`. Create a team with the create-team script, which
+> inserts one team plus its captain and prints the captain's join link:
+>
+> ```sh
+> pnpm db:create-team --name "Brooklyn Bocce" --slug brooklyn-bocce \
+>   --min-players 7 --min-quota-players 2 \
+>   --quota-noun-singular woman --quota-noun-plural women \
+>   --timezone America/New_York --captain "Alison Bechdel"
+> ```
+>
+> **Never run `pnpm db:seed` against a real database** — it's the dev seed, and
+> it TRUNCATEs every table. It refuses to run with `NODE_ENV=production` or
+> against a non-local `DATABASE_URL`, but don't rely on that.
 
 
 This is a bare-bones attendance tracking app for use with recreational sports teams. It's particularly helpful with co-ed teams, because you'll be able to set both the number of players you need to field and also the number of women (many co-ed leagues require a team to have a mininum number of women present in order to play).

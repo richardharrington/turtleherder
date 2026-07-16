@@ -15,6 +15,7 @@
     "test:e2e": "pnpm --filter @turtleherder/e2e test:e2e",
     "db:up": "docker compose up -d db",
     "db:migrate": "pnpm --filter server db:migrate",
-    "db:seed": "pnpm --filter server db:seed"
+    "db:seed": "pnpm --filter server db:seed",
+    "db:create-team": "pnpm --filter server db:create-team"
   }
 }
