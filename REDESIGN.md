@@ -260,9 +260,9 @@ Simple forms (described above), either modal/overlay or a dedicated page. Decisi
 
 - **Custom calendar/date picker:** Native `datetime-local` input is sufficient. A custom picker is a future upgrade.
 - **Push notifications:** Deliberately parked (see main DESIGN.md roadmap).
-- **Multi-team management UI:** Captains managing multiple teams will be added later; this redesign assumes single-team sessions.
-- **Landing page + tip jar:** Milestone 7 (post-launch).
-- **Self-serve team creation:** Milestone 6 (post-launch).
+- **Multi-team management UI:** Later settled as the multi-team keyring (milestone 6; designed July 2026, see DESIGN.md); this redesign assumes single-team sessions.
+- **Landing page + tip jar:** Milestone 8 (post-launch).
+- **Self-serve team creation:** Milestone 7 (post-launch).
 
 ## Decision Log
 

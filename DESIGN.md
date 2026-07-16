@@ -8,8 +8,9 @@ priority order for everything after feature parity; a fourth the auth
 backend's implementation details as that backend was built; a fifth settled
 the mobile-first redesign's visual and UX direction, recorded in the
 standalone [`REDESIGN.md`](REDESIGN.md) rather than here; a sixth settled
-the front-end push's implementation details as it was built (July 2026
-throughout).
+the front-end push's implementation details as it was built; a seventh the
+[multi-team keyring](#multi-team-keyring-designed-july-2026-build-in-milestone-6)
+— how one browser holds several teams (July 2026 throughout).
 
 ## Goal
 
@@ -316,6 +317,69 @@ and the PWA shell. Implementation decisions, settled in a sixth interview:
   (access page, regenerate, revoke) and the cross-team bounce ride along
   in `app.spec.ts` as Alice.
 
+## Multi-team keyring (designed July 2026, build in milestone 6)
+
+Settled in a seventh design interview (July 2026). The original app's decade
+showed the need is real: people often play on two teams whose seasons
+overlap (bocce and soccer), and the current session model is actively
+confusing for them — tapping team B's join link signs you *out* of team A,
+because `/join` replaces the session.
+
+The insight that keeps join-link auth intact: a session was never "who you
+are" — it is **what this browser has proven it holds**. The join link
+doesn't have to mean "become this player and forget everything else"; it can
+mean "add this key to the keyring." No accounts, no passwords, no email — 
+still.
+
+**Mechanism — the keyring session:**
+
+- A session holds **many player identities**: `session.player_id` becomes a
+  `session_player` join table (the migration maps existing sessions 1:1).
+- `/join/<token>` **adds** that player to the browser's existing session
+  (creating a session if there is none). One key per team per session: a
+  link for a team the keyring already holds *replaces* that team's key, so
+  `/me` stays unambiguous.
+- One `th_session` cookie, unchanged. Middleware asks "does this session
+  hold a player on *this* team?" — the uniform-401 contract is untouched.
+- **One shared rolling clock:** `last_seen_at` stays on the session, so any
+  visit to any team renews the whole keyring. A bocce-and-soccer player who
+  lives on the soccer page all winter keeps their bocce key alive. (This is
+  why cookie-per-team lost: per-team idle clocks make seasonal players
+  re-tap.)
+- **Revocation stays per-player:** regenerate/revoke detaches that player
+  from every keyring holding it; keys for other teams are untouched. The
+  ex-insider threat model is unchanged.
+- **No person entity, ever.** A person on two teams is still two unrelated
+  player rows that happen to sit on one keyring.
+
+**Sign-out — the app's first:** keyrings accumulate. Tap your link on a
+teammate's phone to answer the question, and that phone now holds two
+people's keys, persistently (today's replace-on-join was accidentally
+self-cleaning). So the switcher menu gains **Sign out**: one new endpoint
+that deletes the session and clears the cookie — the whole keyring at once.
+
+**Switcher UI:** the team name becomes the switcher — top of the sidebar on
+desktop; mobile gains a tappable team-name header. When the keyring holds
+more than one team, it opens a menu of them, plus sign-out. Single-team
+users see no change.
+
+**The wall's cross-team note generalizes:** milestone 3's "you can only be
+signed into one team at a time" copy (true today) becomes "You're not
+signed into “{slug}” on this device — use the join link that team's captain
+sent you," with one link per keyring team instead of the single
+"Go to [team] →".
+
+**PWA landing:** the first PWA launch at `/` with a multi-team keyring
+shows a **one-time team chooser**; the pick is remembered and thereafter
+moves with any team visit (i.e., last-visited). Single-team keyrings
+forward silently, as today.
+
+**Rejected consciously:** real accounts / a person entity (ends "no
+passwords, no email"); client-stored join tokens (moves credentials from
+the httpOnly cookie into XSS-readable localStorage); cookie-per-team
+(per-team idle expiry, plus cookies named after slugs break on slug
+renames); unified cross-team views (each team page stays the whole world).
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -358,12 +422,18 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 
 **Post-launch** (in order):
 
-6. **Self-serve teams** — a public create-team flow: team row, first captain,
+6. **Multi-team keyring** — one browser holding several teams, designed in
+   [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
+   the `session_player` join table, join-links-add-keys semantics, the
+   team-name switcher, sign-out, and the wall/PWA updates. Slotted before
+   self-serve so the keyring is in place before self-serve creation makes
+   second teams common.
+7. **Self-serve teams** — a public create-team flow: team row, first captain,
    and that captain's join link issued entirely through the UI. Supersedes
    "seed/SQL only" for team *creation*; later captain changes may stay SQL
    until this milestone decides otherwise. Brings the first spam/abuse
    considerations.
-7. **Landing page + tip jar** — the polish pass on the public page:
+8. **Landing page + tip jar** — the polish pass on the public page:
    what-is-this copy plus the single tip-jar sentence and link (GitHub
    Sponsors or Ko-fi), per the constraints in the goal section.
 
@@ -378,11 +448,11 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
   experience; both coexist indefinitely, and universal links make already-
   texted join/game links open the native app. First-class push arrives here
   if push is ever wanted.
-- **Multi-team captain switching** — surfaced during the redesign interview:
-  a captain running more than one team has no way to switch between them in
-  the UI (the schema has supported multi-team from day one; the client and
-  session model assume one team per visit). Not scoped anywhere yet; revisit
-  if a real captain actually runs multiple teams.
+- **Multi-team switching** — ✅ resolved (July 2026): promoted to milestone 6
+  as the multi-team keyring, designed in
+  [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6).
+  Stopped being hypothetical: the original app's users really did play on
+  overlapping teams (bocce and soccer), and it's players, not just captains.
 
 ## Decision log (original design interview)
 
@@ -432,3 +502,16 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Nav icons | `lucide-react` | Designed set, tree-shakes to ~1–2KB per icon |
 | Service worker | None | Manifest + icons + standalone only, per REDESIGN.md; app is live-data |
 | Manage-access table breakpoint | ≥1024px | REDESIGN.md self-contradicts (640 vs 1024); its decision log and the responsive section say 1024 |
+
+## Decision log (multi-team keyring interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Mechanism | Keyring session: `session_player` join table; a join link **adds** a key | One httpOnly cookie unchanged; per-player revocation intact; shared rolling clock renews every key on any use |
+| Same-team re-tap | Replaces that team's key only | `/me` stays unambiguous per team |
+| Shared devices | Whole-keyring sign-out — the app's first | Lives in the switcher menu; new endpoint deletes session + clears cookie |
+| Switcher | The team name becomes the switcher | Menu when the keyring holds >1; mobile gains a team-name header; single-team UI unchanged |
+| Cross-team wall | "Not signed into “{slug}” on this device" + one link per keyring team | Supersedes milestone 3's "one team at a time" copy when this ships |
+| PWA landing | One-time chooser on first multi-team launch, then remembered | The anchor moves on any team visit (= last-visited thereafter) |
+| Roadmap slot | Milestone 6: after deploy, before self-serve | Launch team ships sooner; keyring ready before second teams are common |
+| Rejected | Accounts / person entity; client-stored tokens; cookie-per-team; unified cross-team views | The person is never modeled — only what a browser holds |
