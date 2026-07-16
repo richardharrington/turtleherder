@@ -1,5 +1,6 @@
 import type { Player, PlayerInput } from "@turtleherder/shared";
 import { pool } from "../db.js";
+import { generateJoinToken } from "./access.js";
 
 interface PlayerRow {
   id: number;
@@ -32,10 +33,10 @@ export async function createPlayer(
   input: PlayerInput,
 ): Promise<Player> {
   const { rows } = await pool.query<PlayerRow>(
-    `INSERT INTO player (team_id, name, counts_toward_minimum)
-     VALUES ($1, $2, $3)
+    `INSERT INTO player (team_id, name, counts_toward_minimum, join_token)
+     VALUES ($1, $2, $3, $4)
      RETURNING id, team_id, name, counts_toward_minimum`,
-    [teamId, input.name, input.countsTowardMinimum],
+    [teamId, input.name, input.countsTowardMinimum, generateJoinToken()],
   );
   return toPlayer(rows[0]!);
 }

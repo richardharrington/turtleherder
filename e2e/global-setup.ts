@@ -23,7 +23,7 @@ export default async function globalSetup(): Promise<void> {
   await client.connect();
   try {
     await client.query(
-      "TRUNCATE team, player, game, attendance RESTART IDENTITY CASCADE",
+      "TRUNCATE team, player, game, attendance, session RESTART IDENTITY CASCADE",
     );
     await client.query(
       `INSERT INTO team (name, slug, min_players, min_quota_players,
@@ -31,8 +31,10 @@ export default async function globalSetup(): Promise<void> {
        VALUES ('Testcats', 'testcats', 7, 2, 'woman', 'women', 'America/New_York')`,
     );
     await client.query(
-      `INSERT INTO player (team_id, name, counts_toward_minimum)
-       VALUES (1, 'Alice', true), (1, 'Bob', false), (1, 'Carol', true)`,
+      `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+       VALUES (1, 'Alice', true, true, 'e2e-alice-token'),
+              (1, 'Bob', false, false, 'e2e-bob-token'),
+              (1, 'Carol', true, false, 'e2e-carol-token')`,
     );
     await client.query(
       `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)

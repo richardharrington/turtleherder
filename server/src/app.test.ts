@@ -28,7 +28,7 @@ beforeAll(async () => {
   });
 
   await pool.query(
-    "TRUNCATE team, player, game, attendance RESTART IDENTITY CASCADE",
+    "TRUNCATE team, player, game, attendance, session RESTART IDENTITY CASCADE",
   );
 
   const team = await pool.query<{ id: number }>(
@@ -40,8 +40,10 @@ beforeAll(async () => {
   const teamId = team.rows[0]!.id;
 
   const players = await pool.query<{ id: number }>(
-    `INSERT INTO player (team_id, name, counts_toward_minimum)
-     VALUES ($1, 'Alice', true), ($1, 'Bob', false), ($1, 'Carol', true)
+    `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+     VALUES ($1, 'Alice', true, true, 'alice-token'),
+            ($1, 'Bob', false, false, 'bob-token'),
+            ($1, 'Carol', true, false, 'carol-token')
      RETURNING id`,
     [teamId],
   );

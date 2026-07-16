@@ -1,6 +1,7 @@
 // Development seed: wipes all data and recreates the demo "bobcats" team,
 // mirroring the example team on the original turtleherder.com.
 
+import { generateJoinToken } from "./data/access.js";
 import { pool } from "./db.js";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -16,7 +17,9 @@ const client = await pool.connect();
 try {
   await client.query("BEGIN");
 
-  await client.query("TRUNCATE team, player, game, attendance RESTART IDENTITY CASCADE");
+  await client.query(
+    "TRUNCATE team, player, game, attendance, session RESTART IDENTITY CASCADE",
+  );
 
   const teamResult = await client.query<{ id: number }>(
     `INSERT INTO team (name, slug, min_players, min_quota_players,
@@ -26,24 +29,31 @@ try {
   );
   const teamId = teamResult.rows[0]!.id;
 
-  const players: Array<[name: string, countsTowardMinimum: boolean]> = [
-    ["Alice Munro", true],
-    ["Ben Katchor", false],
-    ["Carla Speed McNeil", true],
-    ["Dan Clowes", false],
-    ["Eleanor Davis", true],
-    ["Frank King", false],
-    ["Gene Yang", false],
-    ["Hope Larson", true],
-    ["Ivan Brunetti", false],
-    ["Jaime Hernandez", false],
+  // Alison is the team's captain; her join link is printed below so a dev
+  // can sign in the way a real captain would.
+  const players: Array<
+    [name: string, countsTowardMinimum: boolean, isCaptain: boolean]
+  > = [
+    ["Alison Bechdel", true, true],
+    ["Ben Katchor", false, false],
+    ["Carla Speed McNeil", true, false],
+    ["Dan Clowes", false, false],
+    ["Eleanor Davis", true, false],
+    ["Frank King", false, false],
+    ["Gene Yang", false, false],
+    ["Hope Larson", true, false],
+    ["Ivan Brunetti", false, false],
+    ["Jaime Hernandez", false, false],
   ];
   const playerIds: number[] = [];
-  for (const [name, counts] of players) {
+  let captainJoinToken = "";
+  for (const [name, counts, isCaptain] of players) {
+    const joinToken = generateJoinToken();
+    if (isCaptain && !captainJoinToken) captainJoinToken = joinToken;
     const res = await client.query<{ id: number }>(
-      `INSERT INTO player (team_id, name, counts_toward_minimum)
-       VALUES ($1, $2, $3) RETURNING id`,
-      [teamId, name, counts],
+      `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      [teamId, name, counts, isCaptain, joinToken],
     );
     playerIds.push(res.rows[0]!.id);
   }
@@ -89,6 +99,12 @@ try {
   console.log(
     `Seeded team 'bobcats' with ${players.length} players, ${games.length} games ` +
       `(1 bye), and ${responses.length} attendance responses.`,
+  );
+  // The cookie is scoped to localhost (ports don't matter), so this link
+  // signs you in for the Vite dev server too.
+  console.log(
+    `Captain Alison Bechdel's join link: ` +
+      `http://localhost:${process.env.PORT ?? 3000}/join/${captainJoinToken}`,
   );
 } catch (err) {
   await client.query("ROLLBACK");
