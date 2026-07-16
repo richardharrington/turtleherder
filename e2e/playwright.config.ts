@@ -1,8 +1,15 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "@playwright/test";
 
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   "postgres://turtleherder:turtleherder@localhost:5432/turtleherder_test";
+
+// Written by global-setup: a session cookie for fixture player Alice, so
+// tests browse inside the auth wall.
+export const STORAGE_STATE = fileURLToPath(
+  new URL("./.auth/state.json", import.meta.url),
+);
 
 // Dedicated ports so e2e runs don't collide with dev servers on 3000/5173.
 const API_PORT = 3100;
@@ -15,6 +22,7 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: `http://localhost:${CLIENT_PORT}`,
+    storageState: STORAGE_STATE,
   },
   webServer: [
     {

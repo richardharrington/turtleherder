@@ -28,14 +28,16 @@ function toTeam(row: TeamRow): Team {
   };
 }
 
-export async function getTeamBySlug(slug: string): Promise<Team | null> {
+// Handlers resolve the team from the session (see auth.ts), which guarantees
+// it exists — so this returns Team, not Team | null. Slug lookup happens in
+// the session middleware's join.
+export async function getTeamById(id: number): Promise<Team> {
   const { rows } = await pool.query<TeamRow>(
     `SELECT id, name, slug, min_players, min_quota_players,
             quota_noun_singular, quota_noun_plural, timezone
      FROM team
-     WHERE slug = $1`,
-    [slug],
+     WHERE id = $1`,
+    [id],
   );
-  const row = rows[0];
-  return row ? toTeam(row) : null;
+  return toTeam(rows[0]!);
 }

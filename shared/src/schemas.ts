@@ -69,6 +69,14 @@ export const attendanceInputSchema = z.object({
 
 // ---- Auth ----
 
+// The contract for any team-scoped request without a valid session for that
+// team: a uniform 401 with this body, whether the visitor is signed out,
+// signed into a different team, or the slug doesn't exist at all — so team
+// slugs can't be enumerated. The wall page keys off the 401.
+export const unauthorizedErrorSchema = z.object({
+  error: z.literal("unauthorized"),
+});
+
 // Where GET /join/<token> sends a browser holding an invalid or revoked
 // token. Reveals nothing about any team; the wall page can show
 // "that link didn't work — ask your captain for a fresh one."

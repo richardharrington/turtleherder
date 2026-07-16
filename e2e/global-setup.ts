@@ -1,13 +1,22 @@
 // Migrates the test database and seeds a deterministic fixture team
 // before every e2e run. With RESTART IDENTITY, ids are predictable:
 // players Alice=1 / Bob=2 / Carol=3, games past=1 / future=2.
+//
+// The API is walled (see DESIGN.md's auth section), so this also creates a
+// session for Alice and writes it to a Playwright storageState file; every
+// test browses as signed-in Alice. E2e coverage of the join flow and the
+// wall itself arrives with auth's UI in the front-end push milestone.
 
+import { mkdirSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runner } from "node-pg-migrate";
 import pg from "pg";
-import { TEST_DATABASE_URL } from "./playwright.config.js";
+import { STORAGE_STATE, TEST_DATABASE_URL } from "./playwright.config.js";
 
 const DAY = 24 * 60 * 60 * 1000;
+
+const SESSION_ID = "e2e-alice-session";
 
 export default async function globalSetup(): Promise<void> {
   await runner({
@@ -45,7 +54,31 @@ export default async function globalSetup(): Promise<void> {
       `INSERT INTO attendance (player_id, game_id, status)
        VALUES (1, 2, 'yes')`,
     );
+    await client.query(
+      `INSERT INTO session (id, player_id) VALUES ($1, 1)`,
+      [SESSION_ID],
+    );
   } finally {
     await client.end();
   }
+
+  mkdirSync(path.dirname(STORAGE_STATE), { recursive: true });
+  writeFileSync(
+    STORAGE_STATE,
+    JSON.stringify({
+      cookies: [
+        {
+          name: "th_session",
+          value: SESSION_ID,
+          domain: "localhost",
+          path: "/",
+          expires: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60,
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax",
+        },
+      ],
+      origins: [],
+    }),
+  );
 }

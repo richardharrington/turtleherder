@@ -6,7 +6,7 @@ import {
   playerInputSchema,
 } from "@turtleherder/shared";
 import { Hono } from "hono";
-import { setSessionCookie } from "./auth.js";
+import { type AuthEnv, requireSession, setSessionCookie } from "./auth.js";
 import { findPlayerByJoinToken } from "./data/access.js";
 import { setAttendance } from "./data/attendance.js";
 import {
@@ -23,13 +23,13 @@ import {
   updatePlayer,
 } from "./data/players.js";
 import { createSession, pruneExpiredSessions } from "./data/sessions.js";
-import { getTeamBySlug } from "./data/teams.js";
+import { getTeamById } from "./data/teams.js";
 
 function parseId(raw: string): number | null {
   return /^\d+$/.test(raw) ? Number(raw) : null;
 }
 
-export const app = new Hono()
+export const app = new Hono<AuthEnv>()
   .get("/api/health", (c) => c.json({ ok: true }))
 
   // ---- Join: exchange a token for a session cookie ----
@@ -46,48 +46,45 @@ export const app = new Hono()
     return c.redirect(`/${found.teamSlug}`);
   })
 
+  // ---- The wall ----
+  // Both patterns are needed: `/:slug/*` alone doesn't match the bare
+  // `/api/teams/:slug`. requireSession no-ops when both match.
+
+  .use("/api/teams/:slug", requireSession)
+  .use("/api/teams/:slug/*", requireSession)
+
   // ---- Teams ----
 
-  .get("/api/teams/:slug", async (c) => {
-    const team = await getTeamBySlug(c.req.param("slug"));
-    if (!team) {
-      return c.json({ error: "team not found" }, 404);
-    }
-    return c.json(team);
-  })
+  .get("/api/teams/:slug", async (c) =>
+    c.json(await getTeamById(c.get("auth").teamId)),
+  )
 
   // ---- Players ----
 
-  .get("/api/teams/:slug/players", async (c) => {
-    const team = await getTeamBySlug(c.req.param("slug"));
-    if (!team) {
-      return c.json({ error: "team not found" }, 404);
-    }
-    return c.json(await getPlayersForTeam(team.id));
-  })
+  .get("/api/teams/:slug/players", async (c) =>
+    c.json(await getPlayersForTeam(c.get("auth").teamId)),
+  )
 
   .post(
     "/api/teams/:slug/players",
     zValidator("json", playerInputSchema),
-    async (c) => {
-      const team = await getTeamBySlug(c.req.param("slug"));
-      if (!team) {
-        return c.json({ error: "team not found" }, 404);
-      }
-      return c.json(await createPlayer(team.id, c.req.valid("json")), 201);
-    },
+    async (c) =>
+      c.json(await createPlayer(c.get("auth").teamId, c.req.valid("json")), 201),
   )
 
   .put(
     "/api/teams/:slug/players/:playerId",
     zValidator("json", playerInputSchema),
     async (c) => {
-      const team = await getTeamBySlug(c.req.param("slug"));
       const playerId = parseId(c.req.param("playerId"));
-      if (!team || playerId === null) {
+      if (playerId === null) {
         return c.json({ error: "not found" }, 404);
       }
-      const player = await updatePlayer(team.id, playerId, c.req.valid("json"));
+      const player = await updatePlayer(
+        c.get("auth").teamId,
+        playerId,
+        c.req.valid("json"),
+      );
       if (!player) {
         return c.json({ error: "player not found" }, 404);
       }
@@ -96,12 +93,8 @@ export const app = new Hono()
   )
 
   .delete("/api/teams/:slug/players/:playerId", async (c) => {
-    const team = await getTeamBySlug(c.req.param("slug"));
     const playerId = parseId(c.req.param("playerId"));
-    if (!team || playerId === null) {
-      return c.json({ error: "not found" }, 404);
-    }
-    if (!(await deletePlayer(team.id, playerId))) {
+    if (playerId === null || !(await deletePlayer(c.get("auth").teamId, playerId))) {
       return c.json({ error: "player not found" }, 404);
     }
     return c.body(null, 204);
@@ -109,21 +102,16 @@ export const app = new Hono()
 
   // ---- Games ----
 
-  .get("/api/teams/:slug/games", async (c) => {
-    const team = await getTeamBySlug(c.req.param("slug"));
-    if (!team) {
-      return c.json({ error: "team not found" }, 404);
-    }
-    return c.json(await getGamesWithAttendance(team.id));
-  })
+  .get("/api/teams/:slug/games", async (c) =>
+    c.json(await getGamesWithAttendance(c.get("auth").teamId)),
+  )
 
   .get("/api/teams/:slug/games/:gameId", async (c) => {
-    const team = await getTeamBySlug(c.req.param("slug"));
     const gameId = parseId(c.req.param("gameId"));
-    if (!team || gameId === null) {
-      return c.json({ error: "not found" }, 404);
-    }
-    const game = await getGameWithAttendance(team.id, gameId);
+    const game =
+      gameId === null
+        ? null
+        : await getGameWithAttendance(c.get("auth").teamId, gameId);
     if (!game) {
       return c.json({ error: "game not found" }, 404);
     }
@@ -133,25 +121,19 @@ export const app = new Hono()
   .post(
     "/api/teams/:slug/games",
     zValidator("json", gameInputSchema),
-    async (c) => {
-      const team = await getTeamBySlug(c.req.param("slug"));
-      if (!team) {
-        return c.json({ error: "team not found" }, 404);
-      }
-      return c.json(await createGame(team.id, c.req.valid("json")), 201);
-    },
+    async (c) =>
+      c.json(await createGame(c.get("auth").teamId, c.req.valid("json")), 201),
   )
 
   .put(
     "/api/teams/:slug/games/:gameId",
     zValidator("json", gameInputSchema),
     async (c) => {
-      const team = await getTeamBySlug(c.req.param("slug"));
       const gameId = parseId(c.req.param("gameId"));
-      if (!team || gameId === null) {
-        return c.json({ error: "not found" }, 404);
-      }
-      const game = await updateGame(team.id, gameId, c.req.valid("json"));
+      const game =
+        gameId === null
+          ? null
+          : await updateGame(c.get("auth").teamId, gameId, c.req.valid("json"));
       if (!game) {
         return c.json({ error: "game not found" }, 404);
       }
@@ -160,12 +142,8 @@ export const app = new Hono()
   )
 
   .delete("/api/teams/:slug/games/:gameId", async (c) => {
-    const team = await getTeamBySlug(c.req.param("slug"));
     const gameId = parseId(c.req.param("gameId"));
-    if (!team || gameId === null) {
-      return c.json({ error: "not found" }, 404);
-    }
-    if (!(await deleteGame(team.id, gameId))) {
+    if (gameId === null || !(await deleteGame(c.get("auth").teamId, gameId))) {
       return c.json({ error: "game not found" }, 404);
     }
     return c.body(null, 204);
@@ -177,14 +155,18 @@ export const app = new Hono()
     "/api/teams/:slug/games/:gameId/attendance/:playerId",
     zValidator("json", attendanceInputSchema),
     async (c) => {
-      const team = await getTeamBySlug(c.req.param("slug"));
       const gameId = parseId(c.req.param("gameId"));
       const playerId = parseId(c.req.param("playerId"));
-      if (!team || gameId === null || playerId === null) {
+      if (gameId === null || playerId === null) {
         return c.json({ error: "not found" }, 404);
       }
       const { status } = c.req.valid("json");
-      const ok = await setAttendance(team.id, gameId, playerId, status);
+      const ok = await setAttendance(
+        c.get("auth").teamId,
+        gameId,
+        playerId,
+        status,
+      );
       if (!ok) {
         return c.json({ error: "game or player not found" }, 404);
       }

@@ -7,7 +7,12 @@ process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   "postgres://turtleherder:turtleherder@localhost:5432/turtleherder_test";
 
-import type { Game, GameWithAttendance, Player, Team } from "@turtleherder/shared";
+import type {
+  Game,
+  GameWithAttendance,
+  Player,
+  Team,
+} from "@turtleherder/shared";
 import { runner } from "node-pg-migrate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -16,6 +21,35 @@ const { pool } = await import("./db.js");
 
 let gameIds: number[] = [];
 let playerIds: number[] = [];
+let zedId = 0; // a player on the *other* team
+
+// Everyone below authenticates as Alice (a captain of testcats) unless a
+// test passes a different cookie. null = signed out.
+const ALICE = "th_session=alice-session";
+const BOB = "th_session=bob-session"; // not a captain
+const ZED = "th_session=zed-session"; // valid session, different team
+
+function get(url: string, cookie: string | null = ALICE) {
+  return app.request(url, {
+    headers: cookie ? { cookie } : {},
+  });
+}
+
+function jsonRequest(
+  method: string,
+  url: string,
+  body: unknown,
+  cookie: string | null = ALICE,
+) {
+  return app.request(url, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      ...(cookie ? { cookie } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 beforeAll(async () => {
   await runner({
@@ -62,6 +96,26 @@ beforeAll(async () => {
     `INSERT INTO attendance (player_id, game_id, status) VALUES ($1, $2, 'yes')`,
     [playerIds[0], gameIds[0]],
   );
+
+  // A second team, to prove sessions don't cross the wall between teams.
+  const otherTeam = await pool.query<{ id: number }>(
+    `INSERT INTO team (name, slug, min_players, min_quota_players,
+                       quota_noun_singular, quota_noun_plural, timezone)
+     VALUES ('Othercats', 'othercats', 7, 2, 'woman', 'women', 'America/New_York')
+     RETURNING id`,
+  );
+  const zed = await pool.query<{ id: number }>(
+    `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+     VALUES ($1, 'Zed', false, true, 'zed-token') RETURNING id`,
+    [otherTeam.rows[0]!.id],
+  );
+  zedId = zed.rows[0]!.id;
+
+  await pool.query(
+    `INSERT INTO session (id, player_id)
+     VALUES ('alice-session', $1), ('bob-session', $2), ('zed-session', $3)`,
+    [playerIds[0], playerIds[1], zedId],
+  );
 });
 
 afterAll(async () => {
@@ -69,10 +123,62 @@ afterAll(async () => {
 });
 
 describe("GET /api/health", () => {
-  it("responds ok", async () => {
+  it("responds ok without a session", async () => {
     const res = await app.request("/api/health");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+  });
+});
+
+describe("the wall", () => {
+  it("401s every team-scoped endpoint without a cookie", async () => {
+    for (const url of [
+      "/api/teams/testcats",
+      "/api/teams/testcats/games",
+      "/api/teams/testcats/players",
+    ]) {
+      const res = await get(url, null);
+      expect(res.status).toBe(401);
+      expect(await res.json()).toEqual({ error: "unauthorized" });
+    }
+  });
+
+  it("401s writes without a cookie", async () => {
+    const res = await jsonRequest(
+      "PUT",
+      `/api/teams/testcats/games/${gameIds[0]}/attendance/${playerIds[0]}`,
+      { status: "yes" },
+      null,
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("401s a session id that doesn't exist", async () => {
+    const res = await get("/api/teams/testcats", "th_session=made-up");
+    expect(res.status).toBe(401);
+  });
+
+  it("401s a valid session from a different team", async () => {
+    const res = await get("/api/teams/testcats", ZED);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "unauthorized" });
+  });
+
+  it("401s an unknown slug even with a valid session (no enumeration)", async () => {
+    const res = await get("/api/teams/nope");
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "unauthorized" });
+  });
+
+  it("401s an expired session", async () => {
+    await pool.query(
+      `INSERT INTO session (id, player_id, created_at, last_seen_at)
+       VALUES ('expired-session', $1, now() - interval '400 days',
+               now() - interval '400 days')`,
+      [playerIds[0]],
+    );
+    const res = await get("/api/teams/testcats", "th_session=expired-session");
+    expect(res.status).toBe(401);
   });
 });
 
@@ -90,9 +196,7 @@ describe("GET /join/:token", () => {
 
     // The cookie it set is a working session for the team's API.
     const sessionId = /th_session=([^;]+)/.exec(setCookie)![1]!;
-    const api = await app.request("/api/teams/testcats", {
-      headers: { cookie: `th_session=${sessionId}` },
-    });
+    const api = await get("/api/teams/testcats", `th_session=${sessionId}`);
     expect(api.status).toBe(200);
   });
 
@@ -118,25 +222,45 @@ describe("GET /join/:token", () => {
   });
 });
 
+describe("rolling session renewal", () => {
+  it("touches the session and re-issues the cookie when the throttle has lapsed", async () => {
+    await pool.query(
+      `INSERT INTO session (id, player_id, last_seen_at)
+       VALUES ('stale-session', $1, now() - interval '2 hours')`,
+      [playerIds[0]],
+    );
+    const res = await get("/api/teams/testcats", "th_session=stale-session");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toContain("th_session=stale-session");
+
+    const { rows } = await pool.query<{ recent: boolean }>(
+      `SELECT last_seen_at > now() - interval '1 minute' AS recent
+       FROM session WHERE id = 'stale-session'`,
+    );
+    expect(rows[0]!.recent).toBe(true);
+  });
+
+  it("skips the write and cookie inside the throttle window", async () => {
+    const res = await get("/api/teams/testcats"); // alice-session, seen just now
+    expect(res.status).toBe(200);
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+});
+
 describe("GET /api/teams/:slug", () => {
   it("returns the team", async () => {
-    const res = await app.request("/api/teams/testcats");
+    const res = await get("/api/teams/testcats");
     expect(res.status).toBe(200);
     const team = (await res.json()) as Team;
     expect(team.name).toBe("Testcats");
     expect(team.minPlayers).toBe(7);
     expect(team.quotaNounPlural).toBe("women");
   });
-
-  it("404s for an unknown slug", async () => {
-    const res = await app.request("/api/teams/nope");
-    expect(res.status).toBe(404);
-  });
 });
 
 describe("GET /api/teams/:slug/games", () => {
   it("returns games in chronological order with every roster player", async () => {
-    const res = await app.request("/api/teams/testcats/games");
+    const res = await get("/api/teams/testcats/games");
     expect(res.status).toBe(200);
     const games = (await res.json()) as GameWithAttendance[];
     expect(games).toHaveLength(2);
@@ -152,16 +276,11 @@ describe("GET /api/teams/:slug/games", () => {
     expect(wombats.players[0]!.status).toBe("yes");
     expect(wombats.players[1]!.status).toBeNull(); // hasn't responded
   });
-
-  it("404s for an unknown team", async () => {
-    const res = await app.request("/api/teams/nope/games");
-    expect(res.status).toBe(404);
-  });
 });
 
 describe("GET /api/teams/:slug/games/:gameId", () => {
   it("returns a single game", async () => {
-    const res = await app.request(`/api/teams/testcats/games/${gameIds[0]}`);
+    const res = await get(`/api/teams/testcats/games/${gameIds[0]}`);
     expect(res.status).toBe(200);
     const game = (await res.json()) as GameWithAttendance;
     expect(game.opponentName).toBe("Wombats");
@@ -169,25 +288,22 @@ describe("GET /api/teams/:slug/games/:gameId", () => {
   });
 
   it("404s for an unknown game id", async () => {
-    const res = await app.request("/api/teams/testcats/games/999999");
+    const res = await get("/api/teams/testcats/games/999999");
     expect(res.status).toBe(404);
   });
 
   it("404s for a non-numeric game id", async () => {
-    const res = await app.request("/api/teams/testcats/games/abc");
+    const res = await get("/api/teams/testcats/games/abc");
     expect(res.status).toBe(404);
   });
 });
 
 describe("PUT /api/teams/:slug/games/:gameId/attendance/:playerId", () => {
   function put(gameId: number, playerId: number, body: unknown) {
-    return app.request(
+    return jsonRequest(
+      "PUT",
       `/api/teams/testcats/games/${gameId}/attendance/${playerId}`,
-      {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      },
+      body,
     );
   }
 
@@ -200,7 +316,7 @@ describe("PUT /api/teams/:slug/games/:gameId/attendance/:playerId", () => {
     const updated = await put(gameIds[0]!, bob, { status: "no" });
     expect(updated.status).toBe(200);
 
-    const res = await app.request(`/api/teams/testcats/games/${gameIds[0]}`);
+    const res = await get(`/api/teams/testcats/games/${gameIds[0]}`);
     const game = (await res.json()) as GameWithAttendance;
     const bobRow = game.players.find((p) => p.playerId === bob);
     expect(bobRow!.status).toBe("no");
@@ -217,17 +333,9 @@ describe("PUT /api/teams/:slug/games/:gameId/attendance/:playerId", () => {
   });
 });
 
-function jsonRequest(method: string, url: string, body: unknown) {
-  return app.request(url, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
 describe("player CRUD", () => {
   it("lists players alphabetically", async () => {
-    const res = await app.request("/api/teams/testcats/players");
+    const res = await get("/api/teams/testcats/players");
     expect(res.status).toBe(200);
     const players = (await res.json()) as Player[];
     expect(players.map((p) => p.name)).toEqual(["Alice", "Bob", "Carol"]);
@@ -251,18 +359,18 @@ describe("player CRUD", () => {
     expect(((await updated.json()) as Player).countsTowardMinimum).toBe(true);
 
     // New players appear under every game as "hasn't responded".
-    const games = await app.request("/api/teams/testcats/games");
+    const games = await get("/api/teams/testcats/games");
     const wombats = ((await games.json()) as GameWithAttendance[])[0]!;
     const davina = wombats.players.find((p) => p.playerId === dave.id);
     expect(davina).toMatchObject({ name: "Davina", status: null });
 
     const deleted = await app.request(
       `/api/teams/testcats/players/${dave.id}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: { cookie: ALICE } },
     );
     expect(deleted.status).toBe(204);
 
-    const list = await app.request("/api/teams/testcats/players");
+    const list = await get("/api/teams/testcats/players");
     const names = ((await list.json()) as Player[]).map((p) => p.name);
     expect(names).not.toContain("Davina");
   });
@@ -278,6 +386,7 @@ describe("player CRUD", () => {
   it("404s when deleting a player from the wrong team", async () => {
     const res = await app.request("/api/teams/testcats/players/999999", {
       method: "DELETE",
+      headers: { cookie: ALICE },
     });
     expect(res.status).toBe(404);
   });
@@ -310,11 +419,11 @@ describe("game CRUD", () => {
 
     const deleted = await app.request(
       `/api/teams/testcats/games/${game.id}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: { cookie: ALICE } },
     );
     expect(deleted.status).toBe(204);
 
-    const res = await app.request(`/api/teams/testcats/games/${game.id}`);
+    const res = await get(`/api/teams/testcats/games/${game.id}`);
     expect(res.status).toBe(404);
   });
 
@@ -329,6 +438,7 @@ describe("game CRUD", () => {
     expect(game.opponentName).toBeNull();
     await app.request(`/api/teams/testcats/games/${game.id}`, {
       method: "DELETE",
+      headers: { cookie: ALICE },
     });
   });
 
