@@ -11,7 +11,9 @@ standalone [`REDESIGN.md`](REDESIGN.md) rather than here; a sixth settled
 the front-end push's implementation details as it was built; a seventh the
 [multi-team keyring](#multi-team-keyring-designed-july-2026-build-in-milestone-6)
 — how one browser holds several teams; an eighth (a short one) the CI
-workflow's open forks as it was built (July 2026 throughout).
+workflow's open forks as it was built; a ninth the
+[deploy](#deploy-designed-july-2026-build-in-milestone-5) (July 2026
+throughout).
 
 ## Goal
 
@@ -387,6 +389,56 @@ the httpOnly cookie into XSS-readable localStorage); cookie-per-team
 (per-team idle expiry, plus cookies named after slugs break on slug
 renames); unified cross-team views (each team page stays the whole world).
 
+## Deploy (designed July 2026, build in milestone 5)
+
+Settled in a ninth design interview (July 2026). The service topology was
+already decided in code — `server/src/index.ts` serves the built client with
+an SPA fallback in production — so the interview covered everything around
+it.
+
+- **Topology:** one Railway service (Hono serving both `/api` and
+  `client/dist`) plus a Railway Postgres. US East, matching the team's
+  timezone.
+- **Server runtime:** the server ships as an **esbuild bundle** (the client
+  already builds with Vite). Because no test suite exercises the bundle —
+  they all run TypeScript source via tsx/vitest — CI gains a smoke check
+  that boots the bundled server, so bundle-only breakage can't reach the
+  team first.
+- **Migrations:** Railway **pre-deploy command** (`pnpm db:migrate`) — runs
+  against the production database before each new version goes live; a
+  failed migration aborts the deploy instead of crash-looping it.
+- **Deploy trigger:** auto-deploy on every master push, **gated on CI**
+  (Railway's wait-for-CI): the two required GitHub checks must pass or the
+  commit never deploys. GitHub Actions stays the verifier; Railway is only
+  build-and-ship.
+- **Config as code:** a `railway.json` in the repo holds build/start/
+  pre-deploy commands; the dashboard holds only secrets and domains.
+  Env: `DATABASE_URL` (service reference), `NODE_ENV=production` (flips the
+  Secure cookie flag), `APP_ORIGIN` (so scripts print real join links).
+- **Seeding production:** a new parameterized **create-team script**
+  (`db:create-team`: name, slug, quota settings, captain) inserts one team
+  plus its captain and prints the captain's join link — it never truncates,
+  unlike the dev seed, and doubles as a dry run for milestone 7's
+  self-serve flow. Production holds the real team **and a private bobcats
+  sandbox** — unreachable without its join links, per the wall — for
+  verifying deploys and demoing without touching real data.
+- **DNS:** the domain **transfers from Route 53 to Namecheap** (a
+  consolidation wanted independently); Namecheap's ALIAS record points the
+  apex at Railway, which Route 53 cannot do (its alias records only target
+  AWS services). `www` gets a plain CNAME; both are Railway custom domains;
+  bare `turtleherder.com` is canonical. The transfer (~up to a week) is the
+  long pole, so it starts first; everything else proceeds in parallel
+  against the `.up.railway.app` URL, and cutover happens when it lands.
+- **Old PHP site:** "live but surely unused" — retiring it is a judgment
+  call, made deliberately: repointing DNS destroys nothing (the old host
+  and its MySQL data are untouched), so it's reversible in minutes if a
+  forgotten user surfaces.
+- **Backups:** Railway's built-in Postgres backups, with one restore
+  verified by hand. No extra machinery.
+- **Cutover order:** deploy → verify on the Railway URL → create bobcats +
+  the real team → transfer completes → ALIAS/CNAME → re-verify on
+  turtleherder.com → the captain texts everyone their join links.
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -538,3 +590,18 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Scope beyond the suites | typecheck + build included | Tests consume TypeScript source directly, so nothing else exercises `pnpm build` until deploy (milestone 5) — CI is the only pre-launch place build breakage can surface |
 | Branch protection | Required checks (both jobs) to merge a PR; admin enforcement off | Direct admin pushes bypass, preserving the push-to-master workflow. A GitHub repo setting, not visible in the repo |
 | Job layout (as-built) | Two parallel jobs, each with its own `postgres:17-alpine` service | Integration and e2e both truncate/reseed `turtleherder_test`; isolated databases beat sequencing. The service gets `POSTGRES_DB` directly because service containers start before checkout and can't mount `docker/create-test-db.sql` |
+
+## Decision log (deploy interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Topology | One Railway service + Railway Postgres | Pre-decided in code: Hono serves `client/dist` with SPA fallback |
+| Server runtime | esbuild bundle | Chosen over tsx-on-source; because no suite exercises the bundle, CI gains a boot-the-bundle smoke check |
+| Migrations | Railway pre-deploy command | Failed migration aborts the deploy instead of crash-looping the service |
+| Deploy trigger | Master push, gated on CI green | Railway wait-for-CI consumes the two required GitHub checks; Actions verifies, Railway ships |
+| Service config | `railway.json` in the repo | Dashboard holds only secrets + domains |
+| Production seeding | Parameterized `db:create-team` script | Never truncates; prints the captain's join link; dry run for milestone 7 self-serve |
+| Demo team in prod | Yes — private bobcats sandbox | Join-link-gated, invisible otherwise; deploy verification never touches real data |
+| DNS | Transfer Route 53 → Namecheap; ALIAS at apex | Route 53 can't point an apex at Railway; the registrar consolidation was wanted anyway. Transfer starts first (long pole) |
+| Old PHP site | Judgment call — no log audit | Repointing DNS destroys nothing and reverses in minutes |
+| Backups | Railway built-in, restore verified once | No extra machinery for a one-team app |
