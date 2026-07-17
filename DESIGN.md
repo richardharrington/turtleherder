@@ -428,9 +428,15 @@ it.
   consolidation wanted independently); Namecheap's ALIAS record points the
   apex at Railway, which Route 53 cannot do (its alias records only target
   AWS services). `www` gets a plain CNAME; both are Railway custom domains;
-  bare `turtleherder.com` is canonical. The transfer (~up to a week) is the
-  long pole, so it starts first; everything else proceeds in parallel
-  against the `.up.railway.app` URL, and cutover happens when it lands.
+  bare `turtleherder.com` is canonical, enforced by a 301 in the app itself
+  (Railway has no redirect feature, and a registrar "URL redirect record"
+  isn't DNS at all — it hands a slice of the site to Namecheap's web server
+  and needs its own cert). The redirect matches only the `www` host derived
+  from `APP_ORIGIN`, never "any non-canonical host": Railway's healthchecks
+  arrive with their own `Host`, and 301ing those would fail the deploy. The
+  transfer (~up to a week) is the long pole, so it starts first; everything
+  else proceeds in parallel against the `.up.railway.app` URL, and cutover
+  happens when it lands.
 - **Old PHP site:** "live but surely unused" — retiring it is a judgment
   call, made deliberately: repointing DNS destroys nothing (the old host
   and its MySQL data are untouched), so it's reversible in minutes if a

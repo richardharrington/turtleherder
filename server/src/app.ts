@@ -39,7 +39,30 @@ function parseId(raw: string): number | null {
   return /^\d+$/.test(raw) ? Number(raw) : null;
 }
 
+// `www` is a Railway custom domain of its own, so without this it would serve
+// the app as a second, co-equal origin. Session cookies are host-scoped and PWA
+// installs are welded to the origin they were installed from, so a visitor who
+// typed `www` would get a silently separate app with a separate sign-in —
+// working fine right up until it doesn't. APP_ORIGIN is canonical (it's also
+// what join links are built from), so www of *that* host is the one thing we
+// bounce. Unset APP_ORIGIN (dev, tests) disables this entirely.
+const canonicalOrigin = process.env.APP_ORIGIN?.replace(/\/+$/, "");
+// Deliberately not "any host that isn't canonical": Railway's healthchecks
+// arrive with a Host header of their own, and 301ing those fails the deploy.
+const wwwHost = canonicalOrigin ? `www.${new URL(canonicalOrigin).host}` : null;
+
 export const app = new Hono<AuthEnv>()
+  .use("*", async (c, next) => {
+    // node-server builds c.req.url from the request's Host header, so this is
+    // the real hostname in production and settable from tests, which the
+    // `host` header itself is not (fetch forbids setting it).
+    const { host, pathname, search } = new URL(c.req.url);
+    if (host === wwwHost) {
+      return c.redirect(`${canonicalOrigin}${pathname}${search}`, 301);
+    }
+    await next();
+  })
+
   .get("/api/health", (c) => c.json({ ok: true }))
 
   // ---- Join: exchange a token for a session cookie ----

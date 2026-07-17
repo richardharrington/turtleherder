@@ -7,6 +7,10 @@ process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   "postgres://turtleherder:turtleherder@localhost:5432/turtleherder_test";
 
+// app.ts reads this at import time to derive the canonical host. Deliberately
+// not the real domain: these tests shouldn't bake in a production fact.
+process.env.APP_ORIGIN = "https://turtleherder.example";
+
 import type {
   Game,
   GameWithAttendance,
@@ -122,6 +126,39 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await pool.end();
+});
+
+describe("canonical host redirect", () => {
+  it("301s www to the canonical origin, keeping path and query", async () => {
+    const res = await app.request(
+      "https://www.turtleherder.example/testcats/games/3?tab=roster",
+    );
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe(
+      "https://turtleherder.example/testcats/games/3?tab=roster",
+    );
+  });
+
+  it("redirects www before the wall, so it never 401s a signed-out visitor", async () => {
+    const res = await app.request(
+      "https://www.turtleherder.example/api/teams/testcats",
+    );
+    expect(res.status).toBe(301);
+  });
+
+  it("leaves the canonical host alone", async () => {
+    const res = await app.request("https://turtleherder.example/api/health");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
+
+  // Railway's healthchecks arrive with a Host header of their own. Redirecting
+  // those would fail the healthcheck and take the deploy down with it.
+  it("leaves an unrecognized host alone rather than redirecting it", async () => {
+    const res = await app.request("http://healthcheck.railway.app/api/health");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+  });
 });
 
 describe("GET /api/health", () => {
