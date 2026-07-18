@@ -441,8 +441,14 @@ it.
   call, made deliberately: repointing DNS destroys nothing (the old host
   and its MySQL data are untouched), so it's reversible in minutes if a
   forgotten user surfaces.
-- **Backups:** Railway's built-in Postgres backups, with one restore
-  verified by hand. No extra machinery.
+- **Backups:** deferred at build time (July 2026). The plan was Railway's
+  built-in Postgres backups with one restore verified by hand — but they
+  require Railway Pro ($20/mo), and the launch is a single team whose entire
+  state is re-creatable from `db:create-team`. Not worth a standing bill
+  before there's any revenue. **Revisit the moment there's a second team or a
+  tip coming in** — at that point the data is no longer trivially
+  reconstructible and Pro is likely wanted anyway. Accepted risk until then: a
+  Postgres failure loses the one team, who re-adds their roster.
 - **Cutover order:** deploy → verify on the Railway URL → create the real
   team → transfer completes → ALIAS/CNAME → re-verify on turtleherder.com →
   the captain texts everyone their join links.
@@ -488,10 +494,21 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
    traces are uploaded as an artifact on failure. Branch protection on
    master requires both jobs green to merge a PR; admin direct pushes
    bypass (a repo setting, not visible in the repo).
-5. **Deploy** — Railway, with **turtleherder.com pointed at it from day one**
-   so the team's saved links (join links especially) never change. Before
-   repointing: verify nobody still depends on the old PHP site there. Seed the
-   real team; the captain onboards everyone by texting join links.
+5. **Deploy** — ✅ done (July 2026). Live on Railway at turtleherder.com from
+   day one, so the team's saved links never change: esbuild-bundled server,
+   pre-deploy migrations, CI-gated auto-deploy, `db:create-team` for the real
+   team, per-host TLS. Three as-built surprises the design hadn't seen: (a) DNS
+   lived at **Rackspace via Laughing Squid**, not Route 53 — the "Route 53
+   can't ALIAS an apex" reasoning was moot, and Namecheap's ALIAS did the job;
+   (b) the domain carried **live email** (MX at Rackspace) that a nameserver
+   move would have silently dropped — the whole zone, not just the A record,
+   had to be inventoried and replicated first, so "repointing DNS destroys
+   nothing" held for an A record but not for this; (c) the transfer took **~15
+   minutes, not the predicted week**, so it was never the long pole and Railway
+   provisioning became the critical path (certs lagged ~7h, then self-resolved).
+   Also added, unplanned: a `www`→apex 301 in the app, since `www` was a second
+   Railway custom domain serving the app as a co-equal origin (see Deploy
+   section). Backups deliberately deferred — see the Backups decision.
 
 **Post-launch** (in order):
 
@@ -612,4 +629,4 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Demo team in prod | No — none | Reversed while building milestone 5: `db:create-team` conjures a sandbox on demand, so a permanent seeded one earns nothing it doesn't cost. Deploy verification uses a throwaway team from the same script and still never touches real data |
 | DNS | Transfer Route 53 → Namecheap; ALIAS at apex | Route 53 can't point an apex at Railway; the registrar consolidation was wanted anyway. Transfer starts first (long pole) |
 | Old PHP site | Judgment call — no log audit | Repointing DNS destroys nothing and reverses in minutes |
-| Backups | Railway built-in, restore verified once | No extra machinery for a one-team app |
+| Backups | Deferred at build — none yet | Reversed while building milestone 5: Railway's built-in backups need Pro ($20/mo); one team, fully re-creatable from `db:create-team`, no revenue yet. Revisit at the first second-team or tip |
