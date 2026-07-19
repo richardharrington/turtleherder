@@ -723,18 +723,22 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 
 **Post-launch** (in order):
 
-**5.5 — Roster history.** Repair work, not a feature, which is why it takes a
-fractional slot rather than renumbering 6–8 (their section anchors embed
-milestone numbers). Fixes the one bug carried whole from the original: every
-game rendered against the *current* roster, and removing a player destroyed
-their attendance history via cascade. Designed in
+**5.5 — Roster history** — ✅ done (July 2026). Repair work, not a feature,
+which is why it takes a fractional slot rather than renumbering 6–8 (their
+section anchors embed milestone numbers). Fixes the one bug carried whole
+from the original: every game rendered against the *current* roster, and
+removing a player destroyed their attendance history via cascade. Designed in
 [its own section](#roster-history-designed-july-2026-build-in-milestone-55):
 the `roster_membership` stint table, strict interval-derived rosters,
 soft-close-and-prune on departure, a guarded captain purge, the
 `starts_at + 24h` attendance lock, and past games rendering in past tense with
 no quota clause. Slotted ahead of the keyring because it is a schema change to
 tables the keyring also touches, and because every day the app runs, more games
-accumulate a roster that will read wrong later.
+accumulate a roster that will read wrong later. Build-time decisions in the
+[roster history build decision log](#decision-log-roster-history-build-interview);
+one question it surfaced (captain-only removal) went to the Parking lot.
+Shipped as two commits — the stint work, then the independent attendance
+lock.
 
 6. **Multi-team keyring** — one browser holding several teams, designed in
    [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
@@ -845,6 +849,25 @@ accumulate a roster that will read wrong later.
 | Past-game report | Past tense, no quota clause: "**Seven** players confirmed they were playing" | "Confirmed" reports what was recorded, not who attended — the lock makes under-counts permanent |
 | Quota historization | None — `counts_toward_minimum` stays mutable and unhistorized | Dropping quota from past games dissolves the question. Freezing a tally would embed a prior categorization permanently; per-stint history would retain one per player — both partly undo "model the league rule, not identity" |
 | Rejected | `game_id` FK on `player`; stored roster snapshots; frozen quota tally; `attendance.responded_at`; `team_id` on `roster_membership`; `tstzrange` exclusion constraint | See the section's Rejected paragraph for why each fails |
+
+## Decision log (roster history build interview)
+
+Implementation-level decisions settled while building milestone 5.5
+(July 2026); the design itself is in the
+[Roster history section](#roster-history-designed-july-2026-build-in-milestone-55)
+and its decision log above.
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Former players API | Separate endpoint: `GET …/players/former` (`formerPlayerSchema` = player + `leftAt`) | Existing `/players` payload and every caller stay untouched; the collapsed list fetches on its own query key |
+| Former-players surface | Captains only — the list, "Add back", and purge (server-enforced 403s) | "Add back" re-arms a join link already delivered to the departed person's phone with no captain step after, unlike add-player where a captain must copy and text the token. Same class of action as regenerate/revoke |
+| Purge UI | "Delete permanently" danger-zone on the player edit page | Not adjacent to Remove on the roster row (two destructive buttons with subtly different meanings), and reachable without removing first |
+| Past/locked source | Client computes both from `shared/game-time.ts` (`isGamePast`, `isAttendanceLocked`, `ATTENDANCE_LOCK_HOURS`) | Matches the existing client-side past/future sectioning; the server enforces the lock with the same constant, so device-clock skew can only mislead the rendering, never the record |
+| Grace window rendering | Tense flips at `starts_at`; controls stay live until the lock | The only combination that honors the grace period's purpose ("not sure", then played, then fixed it). The personal-question card hides once a game starts — its "will you be coming" is anticipatory voice |
+| Remove confirmation | "Remove {name} from the roster? Their game history stays, and a captain can add them back later." | The dialog is the one moment to teach that removal changed meaning; "a captain can" (not "you can") stays true for non-captain removers |
+| Error contracts | 409 + `{"error": …}`: `"attendance locked"`, `"last captain"`, `"player has history"`, `"player is active"` | Matches the existing terse error-body pattern; client `ApiError` now carries the server's error string, since purge's two 409s need distinguishing |
+| Departed wall copy | Server appends `&team=<name>` to `/?join=departed` | The wall has no session to ask; only the token's rightful holder can trigger the redirect, so naming the team leaks nothing |
+| Stint check on the hot path | A clause inside `getSessionAuth`'s existing query, not a second guard | One round trip on every authenticated request; the keyring middleware keeps the clause |
 
 ## Decision log (multi-team keyring interview)
 

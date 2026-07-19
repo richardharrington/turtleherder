@@ -85,6 +85,19 @@ test("the past-games toggle reveals past games and persists", async ({
   await expect(page.locator("body")).toContainText("Past games");
   await expect(page.locator("body")).toContainText("Marmots");
 
+  // The Marmots game is past the attendance lock: past-tense report with
+  // no quota clause, "didn't respond" rows, and no attendance controls.
+  const marmots = page
+    .locator("section", { hasText: "Marmots" })
+    .filter({ has: page.getByTestId("player-row") });
+  await expect(marmots).toContainText(
+    "No players confirmed they were playing.",
+  );
+  await expect(marmots.getByTestId("player-row").first()).toContainText(
+    "didn't respond",
+  );
+  await expect(marmots.getByRole("radio")).toHaveCount(0);
+
   await page.reload();
   await expect(page.locator("body")).toContainText("Marmots");
   await expect(

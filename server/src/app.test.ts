@@ -898,6 +898,55 @@ describe("captain guards and purge", () => {
   });
 });
 
+describe("attendance lock", () => {
+  let lockedGameId = 0;
+  let graceGameId = 0;
+
+  beforeAll(async () => {
+    const teamId = (
+      await pool.query<{ id: number }>(
+        `SELECT id FROM team WHERE slug = 'testcats'`,
+      )
+    ).rows[0]!.id;
+    const games = await pool.query<{ id: number }>(
+      `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)
+       VALUES ($1, 'Longagos', NULL, now() - interval '25 hours'),
+              ($1, 'Recents', NULL, now() - interval '23 hours')
+       RETURNING id`,
+      [teamId],
+    );
+    [lockedGameId, graceGameId] = games.rows.map((r) => r.id) as [
+      number,
+      number,
+    ];
+  });
+
+  it("409s a write once starts_at + 24h has passed", async () => {
+    const res = await jsonRequest(
+      "PUT",
+      `/api/teams/testcats/games/${lockedGameId}/attendance/${playerIds[1]}`,
+      { status: "yes" },
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "attendance locked" });
+    const rows = await pool.query(
+      `SELECT 1 FROM attendance WHERE player_id = $1 AND game_id = $2`,
+      [playerIds[1], lockedGameId],
+    );
+    expect(rows.rows).toHaveLength(0);
+  });
+
+  it("accepts a write inside the grace window (started, not yet locked)", async () => {
+    const res = await jsonRequest(
+      "PUT",
+      `/api/teams/testcats/games/${graceGameId}/attendance/${playerIds[1]}`,
+      { status: "yes" },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "yes" });
+  });
+});
+
 // Runs last: regenerating/revoking kills sessions other suites rely on.
 describe("access management (captains only)", () => {
   it("403s a non-captain on every access endpoint", async () => {

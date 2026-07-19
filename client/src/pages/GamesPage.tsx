@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { GameWithAttendance } from "@turtleherder/shared";
+import { isGamePast, type GameWithAttendance } from "@turtleherder/shared";
 import { useState } from "react";
 import { useOutletContext } from "react-router";
 import { deleteGame, fetchGames } from "../api.js";
@@ -45,12 +45,8 @@ export function GamesPage() {
   }
 
   const now = Date.now();
-  const past = gamesQuery.data.filter(
-    (g) => new Date(g.startsAt).getTime() <= now,
-  );
-  const future = gamesQuery.data.filter(
-    (g) => new Date(g.startsAt).getTime() > now,
-  );
+  const past = gamesQuery.data.filter((g) => isGamePast(g.startsAt, now));
+  const future = gamesQuery.data.filter((g) => !isGamePast(g.startsAt, now));
 
   function gameRow(game: GameWithAttendance) {
     const date = formatGameDate(game.startsAt, team.timezone);

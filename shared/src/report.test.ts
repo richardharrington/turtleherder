@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { numWord, rosterReport, type ReportInput } from "./report.js";
+import {
+  numWord,
+  pastRosterReport,
+  rosterReport,
+  type ReportInput,
+} from "./report.js";
 
 // The classic bobcats configuration: 7 players minimum, 2 must be women.
 function bobcats(attendingTotal: number, attendingQuota: number): ReportInput {
@@ -111,6 +116,24 @@ describe("rosterReport", () => {
   it("says 'all of whom are' when everyone attending counts", () => {
     expect(rosterReport(bobcats(7, 7))).toEqual([
       "So far we have **seven** players, **all** of whom are women.",
+    ]);
+  });
+
+  it("reports a past game in past tense with no quota clause", () => {
+    expect(pastRosterReport(7)).toEqual([
+      "**Seven** players confirmed they were playing.",
+    ]);
+  });
+
+  it("keeps the singular for one past confirmation", () => {
+    expect(pastRosterReport(1)).toEqual([
+      "**One** player confirmed they were playing.",
+    ]);
+  });
+
+  it("says 'No players' when nobody confirmed a past game", () => {
+    expect(pastRosterReport(0)).toEqual([
+      "**No** players confirmed they were playing.",
     ]);
   });
 

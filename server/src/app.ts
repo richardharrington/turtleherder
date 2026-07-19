@@ -297,14 +297,17 @@ export const app = new Hono<AuthEnv>()
         return c.json({ error: "not found" }, 404);
       }
       const { status } = c.req.valid("json");
-      const ok = await setAttendance(
+      const result = await setAttendance(
         c.get("auth").teamId,
         gameId,
         playerId,
         status,
       );
-      if (!ok) {
+      if (result === "not_found") {
         return c.json({ error: "game or player not found" }, 404);
+      }
+      if (result === "locked") {
+        return c.json({ error: "attendance locked" }, 409);
       }
       return c.json({ status });
     },

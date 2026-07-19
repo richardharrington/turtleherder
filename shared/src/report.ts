@@ -42,6 +42,22 @@ function indefiniteArticle(noun: string): string {
   return /^[aeiou]/i.test(noun) ? "an" : "a";
 }
 
+// The report for a game already played: past tense, and no quota clause at
+// all — the quota flag is only ever read for upcoming games (see DESIGN.md's
+// Roster history section). "Confirmed" is doing deliberate work: the
+// attendance lock means the sentence reports what was *recorded*, not who
+// was there.
+export function pastRosterReport(attendingTotal: number): string[] {
+  const count =
+    attendingTotal === 0
+      ? "No"
+      : numWord(attendingTotal).charAt(0).toUpperCase() +
+        numWord(attendingTotal).slice(1);
+  return [
+    `**${count}** ${players(attendingTotal)} confirmed they were playing.`,
+  ];
+}
+
 export function rosterReport(input: ReportInput): string[] {
   const {
     attendingTotal,

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { isGamePast } from "@turtleherder/shared";
 import { useState } from "react";
 import { useOutletContext } from "react-router";
 import { fetchGames } from "../api.js";
@@ -38,12 +39,8 @@ export function SchedulePage() {
   }
 
   const now = Date.now();
-  const past = gamesQuery.data.filter(
-    (g) => new Date(g.startsAt).getTime() <= now,
-  );
-  const future = gamesQuery.data.filter(
-    (g) => new Date(g.startsAt).getTime() > now,
-  );
+  const past = gamesQuery.data.filter((g) => isGamePast(g.startsAt, now));
+  const future = gamesQuery.data.filter((g) => !isGamePast(g.startsAt, now));
   // The personal question is about the next upcoming non-bye game
   // (games arrive sorted by start time); omitted when there is none.
   const nextGame = future.find((g) => g.opponentName !== null);
