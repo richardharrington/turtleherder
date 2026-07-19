@@ -72,7 +72,21 @@ The two structural flaws of the original are fixed now, not later:
   the league actually checks (does this player count toward the women/gender-minimum
   rule) without modeling gender identity. The auth milestone added
   `join_token` (unique), `join_token_revoked_at`, and `is_captain` — see
-  [Auth design](#auth-design).
+  [Auth design](#auth-design). The flag is **mutable and never historized** —
+  a change applies everywhere at once, including past games, which is safe
+  only because past games don't report quota at all; see
+  [Roster history](#roster-history-designed-july-2026-build-in-milestone-55).
+  A player row is a `(person, team)` pair and is a **stable identity**: it
+  outlives any single stretch of membership, so a player who leaves and
+  rejoins keeps one row, one join token, and one unbroken history.
+- **roster_membership** — `id`, `player_id` FK, `joined_at`, `left_at`
+  (nullable; `NULL` = currently on the team). One row per **stint**; a
+  player who leaves and rejoins has two. No `team_id` — `player.team_id`
+  stays the single source of truth for team scoping, so every existing
+  team-scoped query and auth guard is untouched. Partial unique index on
+  `player_id WHERE left_at IS NULL` (at most one open stint). Added in
+  milestone 5.5 to fix the roster-history bug inherited from the original;
+  see [Roster history](#roster-history-designed-july-2026-build-in-milestone-55).
 - **game** — `id`, `team_id` FK, `opponent_name` (nullable — `NULL` means bye week),
   `opponent_color` (nullable), `starts_at` (`timestamptz`).
   Times are true instants; the team's `timezone` is used for entry and display.
@@ -81,7 +95,11 @@ The two structural flaws of the original are fixed now, not later:
   **Absence of a row means "hasn't responded."** Unlike the original, rows are *not*
   pre-created for every player × game; the schedule view LEFT JOINs the roster to
   render non-responders. This eliminates the original's insert-fanout on new
-  players/games.
+  players/games. Milestone 5.5 added two rules: writes are **rejected after
+  `starts_at + 24h`** (a played game's record settles), and when a player's
+  stint closes, their rows for games the stint no longer covers are deleted
+  in the same transaction. Both are explained in
+  [Roster history](#roster-history-designed-july-2026-build-in-milestone-55).
 - **session** — `id` (random text, the cookie value), `player_id` FK,
   `created_at`, `last_seen_at`. Added by the auth milestone; see
   [Auth design](#auth-design).
@@ -168,6 +186,16 @@ precisely "where will this specific person be, and when." So revocation of one
 person's access, without disturbing anyone else, is the non-negotiable
 requirement. (Random discovery and targeted outsiders are covered for free by
 anything that solves this.)
+
+**Milestone 5.5 amends this.** Removing a player used to be a hard `DELETE`,
+which cut access as a side effect of the row disappearing. Once removal became
+a soft close, that side effect vanished — a removed player would have kept a
+working link and a live session, which is precisely the ex-insider this threat
+model exists to stop. So `/join/<token>` and the session wall are now gated on
+an **open roster stint** as well as a valid session, and closing a stint
+deletes that player's sessions. The token itself is left intact and inert; see
+[Roster history](#roster-history-designed-july-2026-build-in-milestone-55) for
+why `join_token_revoked_at` is deliberately *not* reused to express this.
 
 **Mechanism — per-player capability links exchanged for a cookie:**
 
@@ -389,6 +417,53 @@ the httpOnly cookie into XSS-readable localStorage); cookie-per-team
 (per-team idle expiry, plus cookies named after slugs break on slug
 renames); unified cross-team views (each team page stays the whole world).
 
+**Amended by milestone 5.5 — read before building this.** 5.5 shipped first
+and changed three things this section assumes. See
+[Roster history](#roster-history-designed-july-2026-build-in-milestone-55).
+
+- **"Delete that player's sessions" must become "detach that player's key."**
+  Two places run `DELETE FROM session WHERE player_id = $1`: the pre-existing
+  one in `updateTokenAndKillSessions` (`access.ts:104`, on regenerate/revoke)
+  and the one 5.5 adds to the stint-close path in `players.ts` — needed there
+  because soft close no longer deletes the `player` row, so the FK cascade
+  that used to cut access silently stops happening.
+
+  Dropping `session.player_id` makes both fail loudly rather than misbehave,
+  which is the good news. The trap is the rewrite. The faithful-looking
+  translation is **wrong**:
+
+  ```sql
+  -- WRONG: signs the browser out of every team on the keyring
+  DELETE FROM session
+   WHERE id IN (SELECT session_id FROM session_player WHERE player_id = $1);
+  ```
+
+  ```sql
+  -- RIGHT: removes only this team's key
+  DELETE FROM session_player WHERE player_id = $1;
+  ```
+
+  The first contradicts "revocation stays per-player… keys for other teams are
+  untouched" above, and it reads like a correct port of the old behavior.
+- **The middleware question gains a clause.** "Does this session hold a
+  player on *this* team?" becomes "…a player **with an open roster stint** on
+  this team?" Without it a departed player's key still passes the wall.
+- **`/join` is no longer purely additive.** It must refuse to add a key for a
+  player with no open stint, returning the distinct `?join=departed` response
+  rather than the invalid-token one.
+- **The wall's cross-team copy gains a third case.** This section rewrites the
+  wall for keyrings ("not signed into {slug}… use the join link that team's
+  captain sent you"); 5.5 adds "you're no longer on this roster," which is a
+  different message with a different remedy. Both have to coexist.
+- **Detaching on departure also keeps the switcher honest.** A key for a team
+  the player has left would otherwise sit in the switcher menu and the PWA
+  chooser, bouncing to the wall when picked. Detach removes the entry, so
+  this needs no separate filtering — one more reason detach is the right verb.
+- **No conflict with "no person entity."** `roster_membership` has no
+  `team_id` and hangs off a per-team `player` row, so a person on two teams
+  is still two unrelated players with independent stints. It looks like
+  tension; it isn't.
+
 ## Deploy (designed July 2026, build in milestone 5)
 
 Settled in a ninth design interview (July 2026). The service topology was
@@ -453,6 +528,142 @@ it.
   team → transfer completes → ALIAS/CNAME → re-verify on turtleherder.com →
   the captain texts everyone their join links.
 
+## Roster history (designed July 2026, build in milestone 5.5)
+
+Settled in a tenth design interview (July 2026), against a bug inherited
+whole from the original: **every game showed the roster as it is now.**
+`legacy/bobcats/index.php:328` calls one `printgame()` for past and future
+alike, and the port reproduced it faithfully at `games.ts:70` —
+`JOIN player p ON p.team_id = g.team_id`, i.e. every current player joined to
+every game the team ever played. If A, B and C play on January 1, then A
+leaves and D joins, the January 1 game retroactively claims D was there
+(with no response recorded) and forgets A entirely. Worse, `deletePlayer`
+hard-deleted the row and `attendance.player_id` cascaded, so A's January 1
+"yes" wasn't merely hidden — it was destroyed.
+
+**The fix is to model membership as intervals and derive each game's roster
+from them.**
+
+- **Stints, not flags.** `roster_membership` holds `(player_id, joined_at,
+  left_at)`. A game's roster is every stint where
+  `joined_at <= g.starts_at AND (left_at IS NULL OR left_at > g.starts_at)`.
+  Dates directly on `player` would have expressed the same predicate — the
+  membership table exists for exactly one reason, **multiple stints**. A
+  seasonal league has people who sit out a season and return; under
+  dates-on-player, a rejoin either erases the gap (reintroducing this very
+  bug for that window) or forks the player into a second row with a second
+  join token and split history.
+- **Strict derivation — never a union with `attendance`.** An earlier draft
+  rendered the roster as members-at-`starts_at` *plus* anyone holding an
+  attendance row, to protect responses orphaned by a backdated `left_at`.
+  That case is unreachable (nothing writes `left_at` to anything but
+  `now()`), and the union breaks a routine one: a player who RSVPs "yes" to
+  a June game and quits in March would appear on the June card as "will be
+  playing," months after leaving.
+- **Departure closes a stint and prunes forward RSVPs.** Removing a player
+  sets `left_at = now()` and, in the same transaction, deletes their
+  attendance rows for games where `starts_at >= left_at` — **the exact
+  complement of the roster predicate**, so nothing is orphaned and nothing
+  that would still render is destroyed. Only unplayed games are touched;
+  history is unreachable by construction. A rejoining player therefore comes
+  back as "hasn't responded," which is the honest state and matches the
+  schema's own "absence of a row" rule.
+- **Deleting a player is no longer how you remove one.** The normal path
+  soft-closes the stint. A separate captain-only **purge** hard-deletes the
+  row, and **refuses when any attendance row exists** — its purpose is the
+  typo'd player who never played, and the guard makes the destructive path
+  structurally unable to destroy history. If someone ever genuinely needs to
+  erase a real member, that should be a conversation, not a button.
+- **Departed players stay visible, and rejoining is a real route.** The
+  players page grows a collapsed **"Former players"** list below the roster
+  (the same show/hide pattern as past games), each row showing when they left
+  and an **"Add back"** that opens a *new stint on the existing player row*.
+  Without this, multi-stint is unreachable: `createPlayer` only ever makes a
+  new `player`, so a captain re-adding someone next season would produce a
+  second row, a second token, and history stranded on the first — exactly
+  what choosing a stint table over dates-on-player was meant to prevent. It
+  also makes an accidental removal visible and reversible, which the old hard
+  delete never was.
+- **Departure cuts access without killing the link.** Closing a stint deletes
+  that player's sessions, and `/join/<token>` plus the session wall are gated
+  on an **open stint**. A departed player gets a **distinct** response —
+  `302 /?join=departed`, and the wall says "You're no longer on the {team}
+  roster. If that's a mistake, ask your captain to add you back." This is a
+  deliberate exception to the uniform-401 contract, which exists to prevent
+  **enumeration**: signed-out, wrong-team, and unknown-slug look alike so
+  nobody can probe which teams exist. A valid-but-departed token is a 128-bit
+  secret, so only the person it was issued to ever sees this message, and it
+  tells them nothing they don't know. The alternative traps them in a loop —
+  the generic "ask your captain for a fresh link" is advice that cannot work,
+  since the gate is the stint and not the token, so a captain could
+  regenerate forever with no effect. Invalid tokens keep today's copy.
+  The token row itself is left untouched, so "Add back" revives their
+  original magic link and no one has to be re-texted. Crucially,
+  `join_token_revoked_at` is **not** reused for this: it means "a captain
+  deliberately killed this link" and nothing else. Overloading it would let a
+  rejoin silently un-revoke a link that was killed for cause — a captain
+  revokes a lost phone's link in March, the player leaves in April and returns
+  in September, and clearing the stamp puts the compromised link back in play.
+  `getAccessList` scopes to active players for the same reason: a departed
+  player's live join link has no business on the manage-access page.
+- **A team always has at least one active captain.** Removing, purging, or
+  (if it ever ships) demoting the last remaining captain is **refused** —
+  `is_captain` lives on `player`, so without this guard an accidental removal
+  of a solo captain locks the team out of manage-access permanently, and the
+  new "Add back" route is itself behind that page. The invariant is stated as
+  "≥ 1 active captain per team" rather than "can't remove a captain", so it
+  covers a future demote path for free. When a team genuinely needs its last
+  captain gone, that is a **support request handled in SQL** — not a button,
+  for the same reason purge refuses on history.
+- **Backfill: one stint per existing player, `joined_at = '-infinity'`.**
+  Join dates were never recorded, and inventing plausible ones would
+  fabricate history; `-infinity` says "unknown, effectively always" and needs
+  no special-casing, since `joined_at <= g.starts_at` handles it directly.
+  Every existing player stays on every existing game — today's behavior,
+  preserved for existing data. Safe because production holds one team,
+  fully re-creatable from `db:create-team` (see the Backups decision).
+
+**Past games become a different rendering, not the same one.** The report at
+`report.ts` is written in anticipatory voice — "So far we have **seven**
+players… we need **two** more" — which was already wrong on a game played in
+March, independent of any roster question. So `GameCard` branches:
+
+- **Attendance locks at `starts_at + 24h`**, one named constant, enforced
+  server-side in `setAttendance` and reflected in the client controls. A
+  grace period rather than `starts_at` itself, so someone who marked "not
+  sure" and then played can still fix it; uniform 24h rather than
+  end-of-day-in-team-timezone, which would hand a 10am game fourteen hours
+  and a 9pm game three. No captain override — cheap to add later, since
+  `is_captain` already exists.
+- **The past report drops the quota clause entirely** and moves to past
+  tense: "**Seven** players confirmed they were playing." "Confirmed" is
+  doing deliberate work — the lock means a game where four played but two
+  forgot to tap reads "**Two**" forever, so the sentence reports what was
+  *recorded*, not who was there. Non-responders read "didn't respond."
+- **Consequently `counts_toward_minimum` never needs historizing.** This was
+  the sharpest question of the interview, because the flag can change for a
+  real reason — a player transitions, and their quota eligibility changes
+  with them. Freezing a per-game tally would have permanently embedded a
+  prior categorization in the record; historizing per stint would have kept
+  a per-player history of it, partly undoing this file's original decision to
+  model the league rule and not identity. Dropping quota from past games
+  dissolves both: the flag is read only for upcoming games, so there is
+  nothing to freeze, nothing to drift, and no stale categorization retained
+  anywhere. The grammar engine keeps its full voice where it means something.
+
+**Rejected consciously:** a `game_id` FK on `player` (the intuitive first
+reach — it forces one player row per game, so `attendance.player_id` stops
+identifying a person); stored `(game_id, player_id)` roster snapshots
+(reintroduces exactly the insert-fanout the Schema section eliminated for
+`attendance`); a frozen per-game quota tally (needs a freeze point the app
+has no notion of, and would sit contradicting the live roster above it);
+`attendance.responded_at` to scope responses to the stint that earned them
+(a whole column to compensate for keeping rows that pruning removes anyway);
+`team_id` on `roster_membership` (two sources of truth for the thing this fix
+exists to give one); an exclusion constraint over `tstzrange` (no UI writes
+arbitrary stint dates, so overlapping *closed* stints aren't reachable — the
+partial unique index catches the only realistic bug).
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -511,6 +722,19 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
    section). Backups deliberately deferred — see the Backups decision.
 
 **Post-launch** (in order):
+
+**5.5 — Roster history.** Repair work, not a feature, which is why it takes a
+fractional slot rather than renumbering 6–8 (their section anchors embed
+milestone numbers). Fixes the one bug carried whole from the original: every
+game rendered against the *current* roster, and removing a player destroyed
+their attendance history via cascade. Designed in
+[its own section](#roster-history-designed-july-2026-build-in-milestone-55):
+the `roster_membership` stint table, strict interval-derived rosters,
+soft-close-and-prune on departure, a guarded captain purge, the
+`starts_at + 24h` attendance lock, and past games rendering in past tense with
+no quota clause. Slotted ahead of the keyring because it is a schema change to
+tables the keyring also touches, and because every day the app runs, more games
+accumulate a roster that will read wrong later.
 
 6. **Multi-team keyring** — one browser holding several teams, designed in
    [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
@@ -592,6 +816,27 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 | Nav icons | `lucide-react` | Designed set, tree-shakes to ~1–2KB per icon |
 | Service worker | None | Manifest + icons + standalone only, per REDESIGN.md; app is live-data |
 | Manage-access table breakpoint | ≥1024px | REDESIGN.md self-contradicts (640 vs 1024); its decision log and the responsive section say 1024 |
+
+## Decision log (roster history interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Membership modeling | `roster_membership` stint table, no `team_id` | Player stays a `(person, team)` pair; the table buys exactly one thing — multiple stints. `player.team_id` remains the sole team-scoping source, so no query or auth guard changes |
+| Roster derivation | Strict interval predicate, never unioned with `attendance` | The union case it would rescue (backdated `left_at`) is unreachable; the case it breaks (RSVP then quit) is routine |
+| Removing a player | Soft-close `left_at = now()` + delete attendance where `starts_at >= left_at` | Delete predicate is the exact complement of the roster predicate: no orphans, nothing still-renderable destroyed, only unplayed games touched |
+| Hard delete | Captain-only purge, refuses if any attendance row exists | For the typo'd player who never played; the guard makes the destructive path unable to destroy history |
+| Rejoining | Collapsed "Former players" list on the players page, "Add back" opens a new stint on the **existing** row | Without a re-add route, multi-stint is unreachable and `createPlayer` silently forks the identity — the exact outcome the stint table was chosen to prevent. Also makes an accidental removal visible and reversible |
+| Departure + auth | Delete sessions; leave the token intact; gate `/join` and the session wall on an open stint | "Add back" revives their original link, so nobody is re-texted |
+| Departed-link copy | Distinct `302 /?join=departed` + "You're no longer on the {team} roster… ask your captain to add you back" | Deliberate exception to uniform-401, which guards against *enumeration*; a valid-but-departed token is a 128-bit secret, so only its rightful holder sees this. The generic copy is advice that cannot work — regenerating can't fix a stint gate |
+| Why not reuse `join_token_revoked_at` | Rejected — it means "a captain deliberately killed this link", one fact per field | Overloading it lets a rejoin silently un-revoke a link killed for cause (lost phone in March, rejoin in September). Cheaper (no auth-layer change) but unresolvable once the two facts share a column |
+| Manage-access scope | `getAccessList` returns active players only | A departed player's live join link doesn't belong on the captain's page |
+| Last captain | Refuse to remove, purge, or demote the last active captain; stated as "≥ 1 active captain per team" | `is_captain` is on `player`; removing a solo captain locks the team out of manage-access, and "Add back" lives behind that page. Genuine cases are a SQL support request |
+| Overlap protection | Partial unique index on `player_id WHERE left_at IS NULL` | No UI writes arbitrary stint dates, so overlapping closed stints aren't reachable; exclusion constraint + `btree_gist` not worth it |
+| Backfill | One stint per player, `joined_at = '-infinity'` | Join dates were never recorded; sentinel needs no special-casing and preserves today's behavior for existing data |
+| Attendance lock | Rejected after `starts_at + 24h`, no captain override | Grace period so "not sure" then played can be fixed; uniform 24h beats end-of-day (which gives a 10am game 14h and a 9pm game 3h). "When the next game starts" rejected: the season's last game would never lock |
+| Past-game report | Past tense, no quota clause: "**Seven** players confirmed they were playing" | "Confirmed" reports what was recorded, not who attended — the lock makes under-counts permanent |
+| Quota historization | None — `counts_toward_minimum` stays mutable and unhistorized | Dropping quota from past games dissolves the question. Freezing a tally would embed a prior categorization permanently; per-stint history would retain one per player — both partly undo "model the league rule, not identity" |
+| Rejected | `game_id` FK on `player`; stored roster snapshots; frozen quota tally; `attendance.responded_at`; `team_id` on `roster_membership`; `tstzrange` exclusion constraint | See the section's Rejected paragraph for why each fails |
 
 ## Decision log (multi-team keyring interview)
 
