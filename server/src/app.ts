@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import {
   attendanceInputSchema,
+  DEPARTED_JOIN_REDIRECT,
   gameInputSchema,
   INVALID_JOIN_REDIRECT,
   playerInputSchema,
@@ -27,9 +28,12 @@ import {
   updateGame,
 } from "./data/games.js";
 import {
+  addBackPlayer,
   createPlayer,
-  deletePlayer,
+  getFormerPlayers,
   getPlayersForTeam,
+  purgePlayer,
+  removePlayer,
   updatePlayer,
 } from "./data/players.js";
 import { createSession, pruneExpiredSessions } from "./data/sessions.js";
@@ -75,6 +79,15 @@ export const app = new Hono<AuthEnv>()
       // Same redirect for unknown and revoked tokens; leaks nothing.
       return c.redirect(INVALID_JOIN_REDIRECT);
     }
+    if (found.status === "departed") {
+      // A valid token whose player has no open stint: a distinct response,
+      // deliberately (see the Roster history decision log) — only the
+      // token's rightful holder can reach it, and the invalid-link copy
+      // would send them chasing a fresh link that can't help.
+      return c.redirect(
+        `${DEPARTED_JOIN_REDIRECT}&team=${encodeURIComponent(found.teamName)}`,
+      );
+    }
     setSessionCookie(c, await createSession(found.playerId));
     return c.redirect(`/${found.teamSlug}`);
   })
@@ -88,6 +101,12 @@ export const app = new Hono<AuthEnv>()
   .use("/api/teams/:slug/access", requireCaptain)
   .use("/api/teams/:slug/players/:playerId/regenerate-token", requireCaptain)
   .use("/api/teams/:slug/players/:playerId/revoke-token", requireCaptain)
+  // The Former players section is access control in effect: "Add back"
+  // re-arms a join link already sitting in the departed person's texts, and
+  // purge destroys a row — so the whole surface is captains-only.
+  .use("/api/teams/:slug/players/former", requireCaptain)
+  .use("/api/teams/:slug/players/:playerId/add-back", requireCaptain)
+  .use("/api/teams/:slug/players/:playerId/purge", requireCaptain)
 
   // ---- Teams ----
 
@@ -136,6 +155,10 @@ export const app = new Hono<AuthEnv>()
     c.json(await getPlayersForTeam(c.get("auth").teamId)),
   )
 
+  .get("/api/teams/:slug/players/former", async (c) =>
+    c.json(await getFormerPlayers(c.get("auth").teamId)),
+  )
+
   .post(
     "/api/teams/:slug/players",
     zValidator("json", playerInputSchema),
@@ -163,10 +186,52 @@ export const app = new Hono<AuthEnv>()
     },
   )
 
+  // Removal is a soft close of the membership stint, not a delete; the
+  // hard delete is the captains-only purge below.
   .delete("/api/teams/:slug/players/:playerId", async (c) => {
     const playerId = parseId(c.req.param("playerId"));
-    if (playerId === null || !(await deletePlayer(c.get("auth").teamId, playerId))) {
+    const result =
+      playerId === null
+        ? "not_found"
+        : await removePlayer(c.get("auth").teamId, playerId);
+    if (result === "not_found") {
       return c.json({ error: "player not found" }, 404);
+    }
+    if (result === "last_captain") {
+      return c.json({ error: "last captain" }, 409);
+    }
+    return c.body(null, 204);
+  })
+
+  .post("/api/teams/:slug/players/:playerId/add-back", async (c) => {
+    const playerId = parseId(c.req.param("playerId"));
+    const result =
+      playerId === null
+        ? { outcome: "not_found" as const }
+        : await addBackPlayer(c.get("auth").teamId, playerId);
+    if (result.outcome === "not_found") {
+      return c.json({ error: "player not found" }, 404);
+    }
+    if (result.outcome === "already_active") {
+      return c.json({ error: "player is active" }, 409);
+    }
+    return c.json(result.player);
+  })
+
+  .post("/api/teams/:slug/players/:playerId/purge", async (c) => {
+    const playerId = parseId(c.req.param("playerId"));
+    const result =
+      playerId === null
+        ? "not_found"
+        : await purgePlayer(c.get("auth").teamId, playerId);
+    if (result === "not_found") {
+      return c.json({ error: "player not found" }, 404);
+    }
+    if (result === "has_history") {
+      return c.json({ error: "player has history" }, 409);
+    }
+    if (result === "last_captain") {
+      return c.json({ error: "last captain" }, 409);
     }
     return c.body(null, 204);
   })

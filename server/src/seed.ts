@@ -62,7 +62,7 @@ try {
   await client.query("BEGIN");
 
   await client.query(
-    "TRUNCATE team, player, game, attendance, session RESTART IDENTITY CASCADE",
+    "TRUNCATE team, player, roster_membership, game, attendance, session RESTART IDENTITY CASCADE",
   );
 
   const teamResult = await client.query<{ id: number }>(
@@ -100,6 +100,13 @@ try {
       [teamId, name, counts, isCaptain, joinToken],
     );
     playerIds.push(res.rows[0]!.id);
+    // '-infinity' (the backfill sentinel) keeps everyone on the seeded
+    // past games; games render their roster from these stints.
+    await client.query(
+      `INSERT INTO roster_membership (player_id, joined_at)
+       VALUES ($1, '-infinity')`,
+      [res.rows[0]!.id],
+    );
   }
 
   const games: Array<

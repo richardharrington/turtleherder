@@ -32,7 +32,7 @@ export default async function globalSetup(): Promise<void> {
   await client.connect();
   try {
     await client.query(
-      "TRUNCATE team, player, game, attendance, session RESTART IDENTITY CASCADE",
+      "TRUNCATE team, player, roster_membership, game, attendance, session RESTART IDENTITY CASCADE",
     );
     await client.query(
       `INSERT INTO team (name, slug, min_players, min_quota_players,
@@ -44,6 +44,12 @@ export default async function globalSetup(): Promise<void> {
        VALUES (1, 'Alice', true, true, 'e2e-alice-token'),
               (1, 'Bob', false, false, 'e2e-bob-token'),
               (1, 'Carol', true, false, 'e2e-carol-token')`,
+    );
+    // Game rosters derive from membership stints; '-infinity' keeps the
+    // fixture players on the past game too.
+    await client.query(
+      `INSERT INTO roster_membership (player_id, joined_at)
+       VALUES (1, '-infinity'), (2, '-infinity'), (3, '-infinity')`,
     );
     await client.query(
       `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)

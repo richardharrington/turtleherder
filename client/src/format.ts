@@ -12,6 +12,16 @@ export function formatGameDate(iso: string, timeZone: string): string {
   }).format(new Date(iso));
 }
 
+// e.g. "January 5, 2026" — the Former players list's "Left …" date.
+export function formatPlainDate(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone,
+  }).format(new Date(iso));
+}
+
 function wallClockParts(date: Date, timeZone: string): Record<string, string> {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone,

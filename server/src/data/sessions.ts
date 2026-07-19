@@ -36,6 +36,9 @@ export async function createSession(playerId: number): Promise<string> {
   return id;
 }
 
+// Auth requires an open roster stint as well as a live session: closing a
+// stint deletes the player's sessions, but the wall must not depend on that
+// side effect alone (milestone 6's keyring middleware keeps this clause).
 export async function getSessionAuth(
   sessionId: string,
 ): Promise<SessionAuth | null> {
@@ -46,7 +49,11 @@ export async function getSessionAuth(
      FROM session s
      JOIN player p ON p.id = s.player_id
      JOIN team t ON t.id = p.team_id
-     WHERE s.id = $1 AND s.last_seen_at > now() - interval '${SESSION_TTL}'`,
+     WHERE s.id = $1 AND s.last_seen_at > now() - interval '${SESSION_TTL}'
+       AND EXISTS (
+         SELECT 1 FROM roster_membership m
+         WHERE m.player_id = p.id AND m.left_at IS NULL
+       )`,
     [sessionId],
   );
   const row = rows[0];

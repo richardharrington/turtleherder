@@ -1,5 +1,6 @@
 import type {
   AttendanceStatus,
+  FormerPlayer,
   Game,
   GameInput,
   GameWithAttendance,
@@ -15,20 +16,33 @@ import type {
 
 // Carries the HTTP status so callers can distinguish the auth wall
 // (401, handled globally in main.tsx) from captain-gating (403) and
-// ordinary failures.
+// ordinary failures, plus the server's error string for statuses that
+// are ambiguous alone (e.g. a 409 from purge: history vs. last captain).
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     label: string,
+    readonly serverError: string | null = null,
   ) {
     super(`${label} failed: ${status}`);
     this.name = "ApiError";
   }
 }
 
+async function apiError(res: Response, label: string): Promise<ApiError> {
+  let serverError: string | null = null;
+  try {
+    const body = (await res.json()) as { error?: unknown };
+    if (typeof body.error === "string") serverError = body.error;
+  } catch {
+    // Not a JSON error body; the status alone will have to do.
+  }
+  return new ApiError(res.status, label, serverError);
+}
+
 async function toJson<T>(res: Response, label: string): Promise<T> {
   if (!res.ok) {
-    throw new ApiError(res.status, label);
+    throw await apiError(res, label);
   }
   return res.json() as Promise<T>;
 }
@@ -89,7 +103,9 @@ export async function updatePlayer(
   );
 }
 
-export async function deletePlayer(
+// A soft removal (closes the membership stint); the player moves to the
+// captains-only Former players list and can be added back.
+export async function removePlayer(
   slug: string,
   playerId: number,
 ): Promise<void> {
@@ -97,7 +113,43 @@ export async function deletePlayer(
     method: "DELETE",
   });
   if (!res.ok) {
-    throw new ApiError(res.status, "delete player");
+    throw await apiError(res, "remove player");
+  }
+}
+
+// ---- Former players (captains only) ----
+
+export async function fetchFormerPlayers(
+  slug: string,
+): Promise<FormerPlayer[]> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/players/former`),
+    "fetch former players",
+  );
+}
+
+export async function addBackPlayer(
+  slug: string,
+  playerId: number,
+): Promise<Player> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/players/${playerId}/add-back`, {
+      method: "POST",
+    }),
+    "add back player",
+  );
+}
+
+// The hard delete; the server refuses (409) when any attendance exists.
+export async function purgePlayer(
+  slug: string,
+  playerId: number,
+): Promise<void> {
+  const res = await fetch(`${teamUrl(slug)}/players/${playerId}/purge`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    throw await apiError(res, "purge player");
   }
 }
 

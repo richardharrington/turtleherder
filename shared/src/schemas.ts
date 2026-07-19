@@ -28,6 +28,15 @@ export const playerSchema = z.object({
 
 export type Player = z.infer<typeof playerSchema>;
 
+// A departed player, as listed in the captains-only "Former players"
+// section: GET /api/teams/:slug/players/former. leftAt is when their most
+// recent membership stint closed.
+export const formerPlayerSchema = playerSchema.extend({
+  leftAt: z.iso.datetime({ offset: true }),
+});
+
+export type FormerPlayer = z.infer<typeof formerPlayerSchema>;
+
 export const playerInputSchema = z.object({
   name: z.string().trim().min(1),
   countsTowardMinimum: z.boolean(),
@@ -86,6 +95,16 @@ export const forbiddenErrorSchema = z.object({
 // token. Reveals nothing about any team; the wall page can show
 // "that link didn't work — ask your captain for a fresh one."
 export const INVALID_JOIN_REDIRECT = "/?join=invalid";
+
+// Where GET /join/<token> sends a *valid* token whose player has no open
+// roster stint — they've been removed from the team. Deliberately distinct
+// from the invalid redirect (a reasoned exception to the uniform-401
+// contract; see DESIGN.md's Roster history section): only the token's
+// rightful holder can ever see it, and the invalid-link copy ("ask your
+// captain for a fresh one") is advice that cannot work when the gate is the
+// stint, not the token. The server appends &team=<name> so the wall can say
+// whose roster they're no longer on.
+export const DEPARTED_JOIN_REDIRECT = "/?join=departed";
 
 // The signed-in player: GET /api/teams/:slug/me.
 export const meSchema = z.object({

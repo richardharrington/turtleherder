@@ -31,6 +31,11 @@
   gap: 8px;
 }
 
+.rowNote {
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
 .toggleBar {
   position: sticky;
   top: 0;

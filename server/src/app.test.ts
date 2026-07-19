@@ -12,6 +12,7 @@ process.env.DATABASE_URL =
 process.env.APP_ORIGIN = "https://turtleherder.example";
 
 import type {
+  FormerPlayer,
   Game,
   GameWithAttendance,
   Me,
@@ -68,7 +69,7 @@ beforeAll(async () => {
   });
 
   await pool.query(
-    "TRUNCATE team, player, game, attendance, session RESTART IDENTITY CASCADE",
+    "TRUNCATE team, player, roster_membership, game, attendance, session RESTART IDENTITY CASCADE",
   );
 
   const team = await pool.query<{ id: number }>(
@@ -88,6 +89,12 @@ beforeAll(async () => {
     [teamId],
   );
   playerIds = players.rows.map((r) => r.id);
+  // Rosters derive from membership stints; '-infinity' (the backfill
+  // sentinel) keeps the fixture players on every fixture game.
+  await pool.query(
+    `INSERT INTO roster_membership (player_id, joined_at)
+     SELECT id, '-infinity' FROM player`,
+  );
 
   const games = await pool.query<{ id: number }>(
     `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)
@@ -116,6 +123,11 @@ beforeAll(async () => {
     [otherTeam.rows[0]!.id],
   );
   zedId = zed.rows[0]!.id;
+  await pool.query(
+    `INSERT INTO roster_membership (player_id, joined_at)
+     VALUES ($1, '-infinity')`,
+    [zedId],
+  );
 
   await pool.query(
     `INSERT INTO session (id, player_id)
@@ -514,6 +526,375 @@ describe("game CRUD", () => {
       startsAt: "next tuesday",
     });
     expect(res.status).toBe(400);
+  });
+});
+
+// ---- Roster history (milestone 5.5) ----
+// A dedicated team so departures here can't disturb the testcats fixtures
+// the other suites rely on. Bea (captain) does the API calls; Ann is the
+// player who leaves. Tests in this block build on one another in order.
+describe("roster history", () => {
+  const BEA = "th_session=hist-bea-session";
+  const CAL = "th_session=hist-cal-session"; // active non-captain
+  const ANN = "th_session=hist-ann-session";
+  let annId = 0;
+  let beaId = 0;
+  let calId = 0;
+  let pastGameId = 0;
+  let futureGameId = 0;
+
+  beforeAll(async () => {
+    const team = await pool.query<{ id: number }>(
+      `INSERT INTO team (name, slug, min_players, min_quota_players,
+                         quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Histcats', 'histcats', 7, 2, 'woman', 'women', 'America/New_York')
+       RETURNING id`,
+    );
+    const teamId = team.rows[0]!.id;
+    const players = await pool.query<{ id: number }>(
+      `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+       VALUES ($1, 'Ann', true, false, 'ann-token'),
+              ($1, 'Bea', false, true, 'bea-token'),
+              ($1, 'Cal', false, false, 'cal-token')
+       RETURNING id`,
+      [teamId],
+    );
+    [annId, beaId, calId] = players.rows.map((r) => r.id) as [
+      number,
+      number,
+      number,
+    ];
+    await pool.query(
+      `INSERT INTO roster_membership (player_id, joined_at)
+       VALUES ($1, '-infinity'), ($2, '-infinity'), ($3, '-infinity')`,
+      [annId, beaId, calId],
+    );
+    const games = await pool.query<{ id: number }>(
+      `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)
+       VALUES ($1, 'Januaries', NULL, now() - interval '2 days'),
+              ($1, 'Junebugs', NULL, now() + interval '2 days')
+       RETURNING id`,
+      [teamId],
+    );
+    [pastGameId, futureGameId] = games.rows.map((r) => r.id) as [
+      number,
+      number,
+    ];
+    // Ann's responses: one on a played game (history that must survive her
+    // departure) and one on an upcoming game (the RSVP-then-quit case).
+    // Inserted via SQL so the attendance lock can't reject the past row.
+    await pool.query(
+      `INSERT INTO attendance (player_id, game_id, status)
+       VALUES ($1, $2, 'yes'), ($1, $3, 'yes')`,
+      [annId, pastGameId, futureGameId],
+    );
+    await pool.query(
+      `INSERT INTO session (id, player_id)
+       VALUES ('hist-bea-session', $1), ('hist-cal-session', $2),
+              ('hist-ann-session', $3)`,
+      [beaId, calId, annId],
+    );
+  });
+
+  async function gameRoster(gameId: number): Promise<GameWithAttendance> {
+    const res = await get(`/api/teams/histcats/games/${gameId}`, BEA);
+    expect(res.status).toBe(200);
+    return (await res.json()) as GameWithAttendance;
+  }
+
+  it("soft-removes a player: past roster and history survive, forward RSVPs pruned, sessions dead", async () => {
+    const removed = await app.request(`/api/teams/histcats/players/${annId}`, {
+      method: "DELETE",
+      headers: { cookie: BEA },
+    });
+    expect(removed.status).toBe(204);
+
+    // The played game still shows Ann, with her response intact.
+    const past = await gameRoster(pastGameId);
+    expect(past.players.map((p) => p.name)).toEqual(["Ann", "Bea", "Cal"]);
+    expect(past.players.find((p) => p.playerId === annId)!.status).toBe("yes");
+
+    // The upcoming game no longer shows her, and her RSVP row is gone —
+    // not merely hidden.
+    const future = await gameRoster(futureGameId);
+    expect(future.players.map((p) => p.name)).toEqual(["Bea", "Cal"]);
+    const orphans = await pool.query(
+      `SELECT 1 FROM attendance WHERE player_id = $1 AND game_id = $2`,
+      [annId, futureGameId],
+    );
+    expect(orphans.rows).toHaveLength(0);
+
+    // Her live session died with the stint.
+    const asAnn = await get("/api/teams/histcats", ANN);
+    expect(asAnn.status).toBe(401);
+
+    // The player row itself survives — this was not a delete.
+    const row = await pool.query(`SELECT 1 FROM player WHERE id = $1`, [annId]);
+    expect(row.rows).toHaveLength(1);
+  });
+
+  it("puts a new player on future games only, not the played ones", async () => {
+    const created = await jsonRequest(
+      "POST",
+      "/api/teams/histcats/players",
+      { name: "Dee", countsTowardMinimum: false },
+      BEA,
+    );
+    expect(created.status).toBe(201);
+
+    const past = await gameRoster(pastGameId);
+    expect(past.players.map((p) => p.name)).toEqual(["Ann", "Bea", "Cal"]);
+    const future = await gameRoster(futureGameId);
+    expect(future.players.map((p) => p.name)).toEqual(["Bea", "Cal", "Dee"]);
+    expect(future.players.find((p) => p.name === "Dee")!.status).toBeNull();
+  });
+
+  it("gives a departed player's join link the distinct departed redirect", async () => {
+    const res = await app.request("/join/ann-token");
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe(
+      "/?join=departed&team=Histcats",
+    );
+    expect(res.headers.get("set-cookie")).toBeNull();
+
+    // A genuinely bad token still gets the invalid redirect — the two
+    // must stay distinguishable.
+    const invalid = await app.request("/join/no-such-token");
+    expect(invalid.headers.get("location")).toBe("/?join=invalid");
+  });
+
+  it("omits departed players from the access list", async () => {
+    const res = await get("/api/teams/histcats/access", BEA);
+    expect(res.status).toBe(200);
+    const names = ((await res.json()) as PlayerAccess[]).map((a) => a.name);
+    expect(names).toEqual(["Bea", "Cal", "Dee"]);
+  });
+
+  it("lists former players for captains and 403s everyone else", async () => {
+    const res = await get("/api/teams/histcats/players/former", BEA);
+    expect(res.status).toBe(200);
+    const former = (await res.json()) as FormerPlayer[];
+    expect(former).toHaveLength(1);
+    expect(former[0]!.name).toBe("Ann");
+    expect(Date.parse(former[0]!.leftAt)).toBeGreaterThan(
+      Date.now() - 60_000,
+    );
+
+    const asCal = await get("/api/teams/histcats/players/former", CAL);
+    expect(asCal.status).toBe(403);
+    const addBack = await app.request(
+      `/api/teams/histcats/players/${annId}/add-back`,
+      { method: "POST", headers: { cookie: CAL } },
+    );
+    expect(addBack.status).toBe(403);
+    const purge = await app.request(
+      `/api/teams/histcats/players/${annId}/purge`,
+      { method: "POST", headers: { cookie: CAL } },
+    );
+    expect(purge.status).toBe(403);
+  });
+
+  it("adds a player back: same row, same token, new stint, no resurrected RSVP", async () => {
+    const res = await app.request(
+      `/api/teams/histcats/players/${annId}/add-back`,
+      { method: "POST", headers: { cookie: BEA } },
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as Player).id).toBe(annId);
+
+    // One player row, two stints, exactly one open.
+    const stints = await pool.query<{ left_at: Date | null }>(
+      `SELECT left_at FROM roster_membership WHERE player_id = $1`,
+      [annId],
+    );
+    expect(stints.rows).toHaveLength(2);
+    expect(stints.rows.filter((r) => r.left_at === null)).toHaveLength(1);
+
+    // Back on the roster, off the former list.
+    const players = await get("/api/teams/histcats/players", BEA);
+    expect(((await players.json()) as Player[]).map((p) => p.name)).toEqual([
+      "Ann",
+      "Bea",
+      "Cal",
+      "Dee",
+    ]);
+    const former = await get("/api/teams/histcats/players/former", BEA);
+    expect((await former.json()) as FormerPlayer[]).toHaveLength(0);
+
+    // Her original link works again, without regenerating.
+    const join = await app.request("/join/ann-token");
+    expect(join.status).toBe(302);
+    expect(join.headers.get("location")).toBe("/histcats");
+
+    // The pruned June RSVP stays gone: she's back as "hasn't responded".
+    const future = await gameRoster(futureGameId);
+    expect(future.players.find((p) => p.playerId === annId)!.status).toBeNull();
+    // And the played game kept her original response all along.
+    const past = await gameRoster(pastGameId);
+    expect(past.players.find((p) => p.playerId === annId)!.status).toBe("yes");
+  });
+
+  it("409s an add-back for a player who is already active", async () => {
+    const res = await app.request(
+      `/api/teams/histcats/players/${annId}/add-back`,
+      { method: "POST", headers: { cookie: BEA } },
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: "player is active" });
+  });
+
+  it("keeps a deliberately revoked token revoked across a leave and rejoin", async () => {
+    // The lost-phone case: a captain revoked Cal's link for cause…
+    const revoked = await app.request(
+      `/api/teams/histcats/players/${calId}/revoke-token`,
+      { method: "POST", headers: { cookie: BEA } },
+    );
+    expect(revoked.status).toBe(200);
+    const revokedAt = ((await revoked.json()) as PlayerAccess).revokedAt;
+    expect(revokedAt).not.toBeNull();
+
+    // …then Cal leaves and is added back months later.
+    const removed = await app.request(
+      `/api/teams/histcats/players/${calId}`,
+      { method: "DELETE", headers: { cookie: BEA } },
+    );
+    expect(removed.status).toBe(204);
+    const addedBack = await app.request(
+      `/api/teams/histcats/players/${calId}/add-back`,
+      { method: "POST", headers: { cookie: BEA } },
+    );
+    expect(addedBack.status).toBe(200);
+
+    // The rejoin must not silently put the compromised link back in play:
+    // still invalid (not departed), stamp untouched.
+    const join = await app.request("/join/cal-token");
+    expect(join.headers.get("location")).toBe("/?join=invalid");
+    const { rows } = await pool.query<{ join_token_revoked_at: Date }>(
+      `SELECT join_token_revoked_at FROM player WHERE id = $1`,
+      [calId],
+    );
+    expect(rows[0]!.join_token_revoked_at.toISOString()).toBe(revokedAt);
+  });
+});
+
+// The "≥ 1 active captain per team" invariant and the guarded purge, on
+// their own team since they reshape the roster as they go.
+describe("captain guards and purge", () => {
+  const PRIYA = "th_session=cap-priya-session";
+  const QUINN = "th_session=cap-quinn-session";
+  let teamId = 0;
+  let priyaId = 0;
+  let quinnId = 0;
+  let playedGameId = 0;
+
+  beforeAll(async () => {
+    const team = await pool.query<{ id: number }>(
+      `INSERT INTO team (name, slug, min_players, min_quota_players,
+                         quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Capcats', 'capcats', 7, 2, 'woman', 'women', 'America/New_York')
+       RETURNING id`,
+    );
+    teamId = team.rows[0]!.id;
+    const players = await pool.query<{ id: number }>(
+      `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+       VALUES ($1, 'Priya', true, true, 'priya-token'),
+              ($1, 'Quinn', false, false, 'quinn-token')
+       RETURNING id`,
+      [teamId],
+    );
+    [priyaId, quinnId] = players.rows.map((r) => r.id) as [number, number];
+    await pool.query(
+      `INSERT INTO roster_membership (player_id, joined_at)
+       VALUES ($1, '-infinity'), ($2, '-infinity')`,
+      [priyaId, quinnId],
+    );
+    const game = await pool.query<{ id: number }>(
+      `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)
+       VALUES ($1, 'Bygones', NULL, now() - interval '5 days')
+       RETURNING id`,
+      [teamId],
+    );
+    playedGameId = game.rows[0]!.id;
+    await pool.query(
+      `INSERT INTO session (id, player_id)
+       VALUES ('cap-priya-session', $1), ('cap-quinn-session', $2)`,
+      [priyaId, quinnId],
+    );
+  });
+
+  it("refuses to remove or purge the last active captain", async () => {
+    const removed = await app.request(
+      `/api/teams/capcats/players/${priyaId}`,
+      { method: "DELETE", headers: { cookie: PRIYA } },
+    );
+    expect(removed.status).toBe(409);
+    expect(await removed.json()).toEqual({ error: "last captain" });
+
+    // Priya has no attendance, so only the captain guard can be what
+    // refuses the purge.
+    const purged = await app.request(
+      `/api/teams/capcats/players/${priyaId}/purge`,
+      { method: "POST", headers: { cookie: PRIYA } },
+    );
+    expect(purged.status).toBe(409);
+    expect(await purged.json()).toEqual({ error: "last captain" });
+  });
+
+  it("removes a captain once another active captain exists", async () => {
+    // Captaincy changes are SQL-only, as designed.
+    await pool.query(`UPDATE player SET is_captain = true WHERE id = $1`, [
+      quinnId,
+    ]);
+    const removed = await app.request(
+      `/api/teams/capcats/players/${priyaId}`,
+      { method: "DELETE", headers: { cookie: QUINN } },
+    );
+    expect(removed.status).toBe(204);
+  });
+
+  it("refuses to purge a player with history, and purges one without", async () => {
+    // A player who responded to a played game: purge must refuse.
+    const withHistory = await jsonRequest(
+      "POST",
+      "/api/teams/capcats/players",
+      { name: "Vera", countsTowardMinimum: false },
+      QUINN,
+    );
+    const vera = (await withHistory.json()) as Player;
+    await pool.query(
+      `INSERT INTO attendance (player_id, game_id, status)
+       VALUES ($1, $2, 'yes')`,
+      [vera.id, playedGameId],
+    );
+    const refused = await app.request(
+      `/api/teams/capcats/players/${vera.id}/purge`,
+      { method: "POST", headers: { cookie: QUINN } },
+    );
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: "player has history" });
+
+    // The typo'd player who never played: purge erases the row entirely.
+    const typo = await jsonRequest(
+      "POST",
+      "/api/teams/capcats/players",
+      { name: "Tpyo", countsTowardMinimum: false },
+      QUINN,
+    );
+    const tpyo = (await typo.json()) as Player;
+    const purged = await app.request(
+      `/api/teams/capcats/players/${tpyo.id}/purge`,
+      { method: "POST", headers: { cookie: QUINN } },
+    );
+    expect(purged.status).toBe(204);
+    const gone = await pool.query(`SELECT 1 FROM player WHERE id = $1`, [
+      tpyo.id,
+    ]);
+    expect(gone.rows).toHaveLength(0);
+    const stints = await pool.query(
+      `SELECT 1 FROM roster_membership WHERE player_id = $1`,
+      [tpyo.id],
+    );
+    expect(stints.rows).toHaveLength(0);
   });
 });
 

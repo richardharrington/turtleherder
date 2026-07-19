@@ -61,14 +61,24 @@ function assemble(
   }));
 }
 
-// Every roster player appears under every game; the LEFT JOIN yields
-// status null for players who haven't responded.
+// A game's roster is the players whose membership stint covers starts_at —
+// strictly this interval predicate, never a union with attendance (see
+// DESIGN.md's Roster history section). EXISTS rather than a join so a
+// player with overlapping stints (unreachable, but the query shouldn't
+// depend on that) still yields one row. The LEFT JOIN yields status null
+// for players who haven't responded.
 const PLAYER_STATUS_SQL = `
   SELECT g.id AS game_id, p.id AS player_id, p.name,
          p.counts_toward_minimum, a.status
   FROM game g
   JOIN player p ON p.team_id = g.team_id
   LEFT JOIN attendance a ON a.game_id = g.id AND a.player_id = p.id
+  WHERE EXISTS (
+    SELECT 1 FROM roster_membership m
+    WHERE m.player_id = p.id
+      AND m.joined_at <= g.starts_at
+      AND (m.left_at IS NULL OR m.left_at > g.starts_at)
+  )
 `;
 
 export async function getGamesWithAttendance(
@@ -81,7 +91,7 @@ export async function getGamesWithAttendance(
     [teamId],
   );
   const statuses = await pool.query<PlayerStatusRow>(
-    `${PLAYER_STATUS_SQL} WHERE g.team_id = $1 ORDER BY p.name ASC`,
+    `${PLAYER_STATUS_SQL} AND g.team_id = $1 ORDER BY p.name ASC`,
     [teamId],
   );
   return assemble(games.rows, statuses.rows);
@@ -100,7 +110,7 @@ export async function getGameWithAttendance(
     return null;
   }
   const statuses = await pool.query<PlayerStatusRow>(
-    `${PLAYER_STATUS_SQL} WHERE g.team_id = $1 AND g.id = $2 ORDER BY p.name ASC`,
+    `${PLAYER_STATUS_SQL} AND g.team_id = $1 AND g.id = $2 ORDER BY p.name ASC`,
     [teamId, gameId],
   );
   return assemble(games.rows, statuses.rows)[0]!;

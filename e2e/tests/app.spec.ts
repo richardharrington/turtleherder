@@ -144,7 +144,7 @@ test("adding a game shows it under manage games and the schedule", async ({
   await expect(page.locator("body")).toContainText("(the blue team)");
 });
 
-test("deleting a player asks for confirmation and removes them", async ({
+test("removing a player is reversible: former players list, dead link, add back", async ({
   page,
 }) => {
   await page.goto("/testcats/players");
@@ -152,15 +152,46 @@ test("deleting a player asks for confirmation and removes them", async ({
 
   page.on("dialog", (dialog) => {
     expect(dialog.message()).toBe(
-      "Do you really want to delete Carol from the roster?",
+      "Remove Carol from the roster? Their game history stays, " +
+        "and a captain can add them back later.",
     );
     void dialog.accept();
   });
-  await carolRow.getByRole("button", { name: "Delete" }).click();
+  await carolRow.getByRole("button", { name: "Remove" }).click();
 
-  await expect(page.locator("body")).not.toContainText("Carol");
+  await expect(
+    page.locator("li", { hasText: "Carol" }).getByRole("button", {
+      name: "Remove",
+    }),
+  ).toHaveCount(0);
   await page.goto("/testcats");
   await expect(page.locator("body")).not.toContainText("Carol");
+
+  // Her join link now gets the distinct departed wall — not the
+  // invalid-link one. (No cookie is set, so we stay signed in as Alice.)
+  await page.goto("/join/e2e-carol-token");
+  await expect(page).toHaveURL("/?join=departed&team=Testcats");
+  await expect(page.locator("body")).toContainText(
+    "You’re no longer on the Testcats roster",
+  );
+  await expect(page.locator("body")).toContainText(
+    "ask your captain to add you back",
+  );
+
+  // Alice (a captain) sees her under Former players and adds her back.
+  await page.goto("/testcats/players");
+  await page.getByRole("button", { name: "Show former players" }).click();
+  await expect(page.locator("body")).toContainText("Former players");
+  const formerCarol = page.locator("li", { hasText: "Carol" });
+  await expect(formerCarol).toContainText("Left");
+  await formerCarol.getByRole("button", { name: "Add back" }).click();
+
+  await expect(page.locator("body")).toContainText("No former players.");
+  await expect(
+    page.locator("li", { hasText: "Carol" }).getByRole("button", {
+      name: "Remove",
+    }),
+  ).toBeVisible();
 });
 
 test("visiting / while signed in forwards to the team", async ({ page }) => {

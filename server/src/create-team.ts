@@ -128,10 +128,15 @@ try {
   // and there's no honest default — so it starts false and the captain flips
   // their own row on the roster page, where the rest of the team gets added.
   const joinToken = generateJoinToken();
-  await client.query(
+  const captainResult = await client.query<{ id: number }>(
     `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
-     VALUES ($1, $2, false, true, $3)`,
+     VALUES ($1, $2, false, true, $3)
+     RETURNING id`,
     [teamId, args.captain, joinToken],
+  );
+  await client.query(
+    `INSERT INTO roster_membership (player_id, joined_at) VALUES ($1, now())`,
+    [captainResult.rows[0]!.id],
   );
 
   await client.query("COMMIT");

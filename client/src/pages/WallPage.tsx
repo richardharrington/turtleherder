@@ -21,6 +21,12 @@ import styles from "./WallPage.module.css";
 export function WallPage() {
   const [params] = useSearchParams();
   const invalidJoin = params.get("join") === "invalid";
+  // A valid link whose player was removed from the roster. Only the link's
+  // rightful holder can ever land here (the token is a 128-bit secret), so
+  // naming the team leaks nothing they don't know — see DESIGN.md's Roster
+  // history section for why this is a deliberate uniform-401 exception.
+  const departedJoin = params.get("join") === "departed";
+  const departedTeam = params.get("team");
   const from = params.get("from");
 
   const lastSlug = localStorage.getItem("lastTeamSlug");
@@ -29,7 +35,7 @@ export function WallPage() {
     queryFn: () => fetchTeam(lastSlug!),
     // A dead join link means "show the message", never "forward away
     // from it" — even if the visitor also has a valid session.
-    enabled: !invalidJoin && lastSlug !== null,
+    enabled: !invalidJoin && !departedJoin && lastSlug !== null,
     retry: false,
   });
 
@@ -46,7 +52,17 @@ export function WallPage() {
     <main className={styles.page}>
       <div className={styles.banner}>
         <p className={styles.wordmark}>Turtleherder</p>
-        {invalidJoin ? (
+        {departedJoin ? (
+          <>
+            <h1 className={styles.heading}>
+              You’re no longer on the{" "}
+              {departedTeam ? `${departedTeam} roster` : "roster"}
+            </h1>
+            <p className={styles.subtext}>
+              If that’s a mistake, ask your captain to add you back.
+            </p>
+          </>
+        ) : invalidJoin ? (
           <>
             <h1 className={styles.heading}>That link didn’t work</h1>
             <p className={styles.subtext}>

@@ -762,6 +762,14 @@ accumulate a roster that will read wrong later.
   experience; both coexist indefinitely, and universal links make already-
   texted join/game links open the native app. First-class push arrives here
   if push is ever wanted.
+- **Captain-only removal** — surfaced while building milestone 5.5 (July
+  2026). Removal became reversible, but the undo ("Add back") is
+  captain-gated, so a non-captain can remove a player they cannot restore —
+  an asymmetry the old hard delete didn't have (it was unrecoverable for
+  everyone). Removal today stays on the trust model ("anyone inside the wall
+  manages the roster"), unchanged from the original app. Explore making
+  removal itself captain-only; a natural moment is milestone 7 (self-serve),
+  when strangers' teams raise the stakes on intra-team mischief.
 - **Multi-team switching** — ✅ resolved (July 2026): promoted to milestone 6
   as the multi-team keyring, designed in
   [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6).
