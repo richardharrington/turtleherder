@@ -1,5 +1,15 @@
 # Turtleherder Mobile-First Redesign
 
+> **⚠️ Superseded (July 19 2026).** The visual and interaction specs in this
+> document shipped in milestone 3 and did not hold up in use — the schedule
+> page became a survey form instead of a scannable report. They are replaced
+> by the **Design overhaul** section of [`DESIGN.md`](DESIGN.md) (milestone
+> 5.75) and `handoffs/design-overhaul.md`. Where the two disagree, DESIGN.md
+> wins. Still valid here: the PWA shell decisions, the native-datetime-input
+> ceiling, responsive breakpoints, and the accessibility floor (44px touch
+> targets, WCAG contrast). This file stays in-tree as the record of what was
+> tried.
+
 ## Overview
 
 This document captures the design interview for milestone 2 (mobile-first redesign) of the turtleherder roadmap. It is the spec for the front-end redesign phase, to be built in milestone 3 ("One front-end push"). This redesign updates the UX across all pages — schedule, games, players, forms, and auth UI (friendly wall, manage-access) — while honoring the app's visual heritage.

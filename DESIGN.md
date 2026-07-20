@@ -664,6 +664,176 @@ exists to give one); an exclusion constraint over `tstzrange` (no UI writes
 arbitrary stint dates, so overlapping *closed* stints aren't reachable — the
 partial unique index catches the only realistic bug).
 
+## Design overhaul (designed July 19 2026, build in milestone 5.75)
+
+Settled in an eighth design interview. Milestone 2's mobile-first design
+(`REDESIGN.md`) shipped in milestone 3 and **didn't work out UX-wise**: the
+schedule page leads with a giant personal-question card, then gives every
+player a ~150px three-button answer widget, so a full roster is several
+screens of buttons and the state of the game — who's in, who's out, are we
+at quorum — is nowhere. The legacy site, for all its 2010 clunk, was a
+*report* you could scan in two seconds. This overhaul restores the legacy
+information architecture with modern styling. Functionality, backend, PWA
+shell, and routes are all kept; `REDESIGN.md`'s visual and interaction
+specs are superseded (the file carries a banner saying so).
+
+**Governing principle:** the schedule page is a **shared scoreboard, not a
+survey form**. Everyone — captain or not — sees the same dense view;
+role changes what actions are available, never what's visible. Answering
+is edit-on-demand, not the page's default posture.
+
+### Schedule page (phone-first)
+
+- **Dense rows**: one line per player — small colored status dot, name
+  (semibold), status phrase in neutral muted text ("will be playing",
+  "isn't sure", "hasn't responded"), subtle chevron. Status colors:
+  green yes / red no / orange not-sure / grey outline no-response. The
+  words never carry the color; the dot does.
+- **Row expansion**: tapping the row (phone; desktop also gets an explicit
+  edit affordance) expands it in place. **One row open at a time** —
+  opening one closes another. Expansion contains a short question plus
+  three small buttons. The question is direct-address on your own row —
+  "Bob, will you be playing?" — and third-person elsewhere: "Will Bob be
+  playing?" (an echo of the legacy sentence's ceremony at 10% of the
+  size).
+- **Sticky game heading**: each game's heading (date · time · opponent)
+  pins to the viewport top while scrolled inside that game's card, so the
+  question's subject is always on screen — this is what lets the
+  expansion question drop the legacy sentence's full restatement of
+  date/opponent/time.
+- **Answer buttons**: always semantically tinted (green Yes / red No /
+  orange Not sure — tinted background + colored border/text at rest),
+  solid fill when selected. Fixes milestone 3's everything-turns-green.
+  On tap: selected state shows for a beat (~500ms), then the row
+  auto-collapses; lasting feedback is the row's dot/phrase and the
+  summary updating.
+- **Roster report at the top of the card**, before the roster list — the
+  answer before the detail. Grammar engine (`shared/src/report.ts`)
+  output unchanged; only placement and styling change.
+- **Compact status strip** at the top of the page: one small line —
+  "You: no response yet for Saturday →" — that jumps to and expands your
+  row in the next non-bye future game (same target the old
+  personal-question card had; omitted when none). It **persists after
+  answering** as a status readout ("You: playing Saturday ✓") and
+  permanent one-tap path to change. This is the entire replacement for
+  milestone 3's giant question card.
+- **Past games** (attendance-locked since 5.5): collapsed to one line
+  each — "Sun, Mar 7 vs Mad Max — 5 confirmed attendance" — expandable on
+  tap to the full locked roster in past tense. Wording stays honest to
+  the attendance lock: *confirmed*, never "played". Behind the existing
+  past/future toggle (localStorage persistence unchanged).
+- **Bye weeks**: "Bye week." rendering preserved, no roster.
+- **Desktop**: same stacked cards in a single centered column (~640–720px)
+  next to the sidebar. No multi-column game grid.
+- The **single-game page** gets the same card treatment; its old
+  personal-question card is likewise replaced by the strip + row pattern.
+
+### Color
+
+- **Green page, white cards**: the page background returns to green
+  (flat or subtle gradient, descended from legacy `#b4dd90 → #83bf56`);
+  content sits on white cards. Green is ambient, not decorative.
+- **Borders**: the page/card contrast does the separating; borders stay
+  minimal (hairlines within cards). Defined borders only where a surface
+  sits on white.
+- **Dark mode: follow the system** via `prefers-color-scheme`, no toggle
+  UI. The dark palette needs real tuning during the build — neutral dark
+  surfaces with green as accent; the interview's sketch (olive-tinted
+  cards) was explicitly rejected by Richard as not good enough.
+- Exact token values are a build-time concern; the interview's light
+  sketch (page `#9ecb74→#7fb254`, ink `#22301c`, statuses `#2e8b2e` /
+  `#c23c2e` / `#d9891f` / `#8b9284`) is a starting point, not a spec.
+
+### Type
+
+- **Body/UI**: humanist system stack —
+  `Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", sans-serif`.
+  No downloaded fonts: drop the Inter bundle and Merriweather (the serif
+  headings are gone entirely).
+- **Headings**: same family, weight 800 with tightened letter-spacing
+  (~-0.025em). (Apple ships Seravek only to Bold, so 800 clamps/synthesizes
+  there; the tight spacing is the visible cue on Apple devices.)
+
+### Other surfaces
+
+- **Nav**: structure unchanged (bottom tab bar on phone, sidebar on
+  desktop; Access gated to captains) — restyled to the new palette/type.
+  The keyring switcher (milestone 6) still lands in this structure.
+- **Manage pages** (players, games + forms) and **access page**: phone
+  layouts stay primary but each gets a **distinct desktop treatment** —
+  these lists are table-shaped, so desktop renders them as real tables.
+  Access keeps mobile tuned for the one-off "text this player their link
+  now" flow.
+- **Wall/chooser**: phone-first, restyled only.
+- **Player form**: the quota checkbox is labeled with the category noun
+  plus a helper line stating the team's rule — "Woman — the league
+  requires at least two on the field" — replacing "Counts toward the
+  women minimum". (On a hypothetical max-men team the same pattern reads
+  "Man — the league allows at most five on the field at once".)
+
+### Deferred: the coed-rules cluster (grill part 2)
+
+How the quota/coed rule is **stored** (typed rule object vs bare columns),
+**calculated** (shorthanded model, min-to-start vs field size), and
+**displayed** (report grammar, percent-rule extensibility) was deliberately
+split out mid-interview — it's backend-touching logic work, not styling —
+to be grilled after 5.75 ships. Its roadmap slot is decided then. Facts
+already established for that session:
+
+- **Legacy analysis** (`legacy/bobcats/index.php:171-251`): two hardcoded
+  minimums, `$min_players=7`, `$min_females=2`; `$females_needed`
+  dominates `$players_needed` when larger. **No maximum of any kind** (no
+  max total/men/women), no shorthanded logic — a stray comment names
+  `max_players` as future user input but no such variable exists.
+  Richard's memory of "backend computed max-men, UI displayed
+  min-women-shorthanded" is not borne out; both halves were plain hard
+  minimums. The new `shared/src/report.ts` is a faithful generalized port
+  of the same model.
+- **NY league survey** (Richard, July 2026): rules come in three
+  statements — (1) max men on field, (2) min women on field, (3) min
+  women *or play shorthanded*. (1) ≡ (3) mathematically (max-men =
+  field-size − min-women, playing down as women fall short); many
+  leagues stating (2) probably practice (3). All surveyed leagues say
+  "women"/"females". Wrinkles: goalkeeper often excluded ("field
+  players"); some leagues have min-to-start distinct from field size
+  ("full team is 7, minimum 5 to start"); NYC Footy has percentage rules
+  (50/50, female-majority FLIP).
+- **Maximums are on-field-at-once rules, not attendance caps** — more
+  Yeses than field spots means healthy sub rotation. Never block an
+  answer; messaging must not imply anyone should stay home.
+- Provisional choices made *before* the survey reframed the problem —
+  the "small configurable kit", dropping maxTotal, saying nothing
+  over-max — are **void**, to be re-decided in part 2. The
+  player-checkbox relabel above stands regardless of model outcome.
+- Config UI for any of this waits for self-serve (milestone 7); until
+  then teams are populated by `db:create-team`, so part 2's scope is
+  schema/script shape + calculation + display only.
+
+### Decision log (design overhaul interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Page's stance toward visitors | Shared scoreboard, not survey form | Same density for captains and players; role gates actions only |
+| Platform priority | Schedule & wall phone-first; manage + access pages distinct desktop layouts | Desktop = tables for list pages |
+| Identity use | Compact status strip, persists after answering | Chosen over auto-expand / highlight / nothing |
+| Row edit trigger | Whole row on phone; explicit affordance on desktop | One row open at a time |
+| Expansion content | Sticky game heading + short question + small buttons | "Bob, will you be playing?" (self) / "Will Bob be playing?" (others); full legacy sentence retired |
+| Report placement | Top of game card | Answer before detail |
+| Row status rendering | Colored dot + neutral text | Words don't carry color |
+| Button semantics | Always tinted green/red/orange; solid when selected | Fixes "No turns green"; Claude preferred selected-only color, overruled |
+| After answering | ~500ms confirm, then auto-collapse | Row dot/phrase is the lasting feedback |
+| Past games | One-line collapsed, expandable | "5 confirmed attendance" — honest about the lock |
+| Palette | Green page, white cards | Borders minimal, contrast separates |
+| Dark mode | Follow system, no toggle | Dark palette to be re-tuned in build; olive sketch rejected |
+| Body font | Humanist system stack | Chosen over system-ui (Claude's pick), Inter, Verdana — compared via live artifact |
+| Headings | Same family, 800, tight kerning | Apple clamps to Bold; spacing is the visible cue |
+| Nav | Keep structure, restyle | Keyring switcher unaffected |
+| Desktop schedule | Single centered column | Two-column grid rejected |
+| Quota checkbox | Noun + rule helper text | Stands independent of rules-model outcome |
+| Coed rules model | **Deferred to grill part 2** | Pre-survey choices void; facts recorded above |
+| Docs | This section + `handoffs/design-overhaul.md`; REDESIGN.md banner | |
+| Roadmap slot | 5.75, before keyring | Fractional per the 5.5 precedent |
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -681,7 +851,11 @@ signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
    for the redesign so it's built once.
 2. **Mobile-first redesign (design phase)** — ✅ done (July 2026). Settled in
    its own design interview, run in parallel with milestone 1; recorded in
-   the standalone [`REDESIGN.md`](REDESIGN.md), not here. Scope: the **full
+   the standalone [`REDESIGN.md`](REDESIGN.md), not here. **Its visual/UX
+   specs were later superseded by the design overhaul (milestone 5.75)** —
+   the shipped UX didn't hold up; see
+   [that section](#design-overhaul-designed-july-19-2026-build-in-milestone-575).
+   Scope: the **full
    UX rethink** — visual redesign (green and status-color heritage kept,
    toned for 2026; gradient and purple links dropped), attendance controls
    designed for thumbs (a segmented Yes/No/Not-Sure control), and the
@@ -740,6 +914,22 @@ one question it surfaced (captain-only removal) went to the Parking lot.
 Shipped as two commits — the stint work, then the independent attendance
 lock.
 
+**5.75 — Design overhaul** — designed July 19 2026 (eighth interview), not
+yet built. Milestone 3 shipped `REDESIGN.md`'s UX and it failed in use: the
+schedule page reads as a survey form (giant buttons, no scannable game
+state) where the legacy page was a two-second report. Restore the legacy
+information density with modern styling — dense dot-status rows,
+edit-on-demand expansion, report atop each card, a compact identity strip,
+green-page/white-card palette, humanist system fonts, system-following dark
+mode. Client-only (plus CSS/token work): no schema, API, or route changes.
+Designed in
+[its own section](#design-overhaul-designed-july-19-2026-build-in-milestone-575);
+implementation plan in `handoffs/design-overhaul.md`. Slotted before the
+keyring so milestone 6's switcher UI is built once, in the new language.
+The **coed-rules cluster** (rule storage/calculation/display) was split out
+of this interview as backend-logic work — see the deferred subsection; its
+roadmap slot is decided after a second grill session, post-5.75.
+
 6. **Multi-team keyring** — one browser holding several teams, designed in
    [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
    the `session_player` join table, join-links-add-keys semantics, the
@@ -774,6 +964,12 @@ lock.
   manages the roster"), unchanged from the original app. Explore making
   removal itself captain-only; a natural moment is milestone 7 (self-serve),
   when strangers' teams raise the stakes on intra-team mischief.
+- **Coed rules model (grill part 2)** — deliberately unslotted (July 19
+  2026). How the quota/coed rule is stored, calculated (shorthanded,
+  min-to-start), and displayed; facts and void provisional choices recorded
+  in the design overhaul section's deferred subsection. Grill after 5.75
+  ships; pick the slot then (candidates: its own milestone before keyring's
+  build, or bundled with self-serve where its config UI lives).
 - **Multi-team switching** — ✅ resolved (July 2026): promoted to milestone 6
   as the multi-team keyring, designed in
   [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6).
