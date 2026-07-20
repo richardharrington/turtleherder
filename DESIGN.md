@@ -1232,6 +1232,15 @@ Settled in a third design interview (July 2026). Sort key: **real users first**
 ties. There is no hard date, so scope wasn't cut to meet one; but self-serve
 signup was confirmed a non-blocker (the launch team's row is an `INSERT`).
 
+**Premise correction (July 20, 2026):** no team is in fact waiting. The
+launch team's row exists in production and its links were never texted; the
+people who might adopt this are former captains of the legacy app whom
+Richard hasn't spoken to in years. The order below still stands on its own
+merits — keyring before self-serve because self-serve makes second teams
+common, landing page last as polish — but "real users first" is currently a
+tiebreaker with no real users behind it, and any decision that leans on user
+feedback to resolve itself has no feedback loop to lean on.
+
 **Pre-launch spine** (in order; each milestone is a commit boundary):
 
 1. **Auth backend** — ✅ done (July 2026). Was shovel-ready with zero design
@@ -1368,14 +1377,42 @@ subsequently restructure.
   experience; both coexist indefinitely, and universal links make already-
   texted join/game links open the native app. First-class push arrives here
   if push is ever wanted.
-- **Captain-only removal** — surfaced while building milestone 5.5 (July
-  2026). Removal became reversible, but the undo ("Add back") is
-  captain-gated, so a non-captain can remove a player they cannot restore —
-  an asymmetry the old hard delete didn't have (it was unrecoverable for
-  everyone). Removal today stays on the trust model ("anyone inside the wall
-  manages the roster"), unchanged from the original app. Explore making
-  removal itself captain-only; a natural moment is milestone 7 (self-serve),
-  when strangers' teams raise the stakes on intra-team mischief.
+- **Non-captain permissions** — **closed until milestone 7** (decided July 20,
+  2026; supersedes the earlier "captain-only removal" entry). The permission
+  model stays exactly as built: access management, the former-players list,
+  add-back, and purge are captains-only; creating/editing/removing players
+  and games, and setting attendance for *any* player, are open to everyone
+  inside the wall.
+
+  Two shapes were considered and rejected for now. (a) Making removal itself
+  captain-only, to fix the asymmetry surfaced in milestone 5.5 — a
+  non-captain can remove a player only a captain can restore, which the old
+  hard delete didn't do (it was unrecoverable for everyone). (b) Making the
+  whole set captain-configurable: per-action checkboxes on a captains-only
+  form letting each team decide whether non-captains may remove players, add
+  players, delete games, or edit others' attendance.
+
+  **Why neither, why now:** there is no incident driving this and no user to
+  ask — see the roadmap's premise correction. With one team, these are rules
+  governing a population of zero. The trust model ("anyone inside the wall
+  manages the roster") held for a decade in the original app, so "unchanged"
+  is the option with evidence behind it. And configurability specifically is
+  a way of *avoiding* the decision rather than making it: the defaults still
+  have to be chosen with exactly the information available today, so it buys
+  no knowledge while adding a migration, an enforcement layer, per-action
+  client checks, tests for both states of every flag, and a permanent
+  compatibility surface. Note also that "non-captains editing others'
+  attendance" is not a permission to withdraw but a distinction that does not
+  exist: `PUT /games/:gameId/attendance/:playerId` accepts any player id with
+  no self-check, and editing a teammate's RSVP on their behalf is a
+  legitimate use (the captain relaying a text). Finally, the checkboxes would
+  require the app's first team-settings page — the same surface the deferred
+  coed-rules work needs — which shouldn't be shaped around its lesser tenant.
+
+  **Reopens at milestone 7 (self-serve), automatically.** Strangers creating
+  their own teams changes the stakes structurally, not anecdotally, so the
+  question gets re-asked when 7 is designed whether or not anyone has
+  complained. Until then this is settled; don't reopen it on instinct.
 - **Coed rules model (grill part 2)** — deliberately unslotted (July 19
   2026). How the quota/coed rule is stored, calculated (shorthanded,
   min-to-start), and displayed; facts and void provisional choices recorded
