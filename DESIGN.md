@@ -1106,6 +1106,67 @@ part of the spec rather than post-hoc selector repair.
   units remain green. Run `pnpm test`, typecheck, production build, and the
   full Playwright suite.
 
+### Design-refinement implementation notes (milestone 5.8, built July 2026)
+
+Shipped as four commits — token-use fact, inline management, Access,
+schedule/visual calibration — plus this documentation pass. Build-time
+decisions and learnings:
+
+- **Token usage is marked by the exchange itself, atomically.** The old
+  `findPlayerByJoinToken` SELECT became `exchangeJoinToken`: one UPDATE
+  that validates the token and `COALESCE`s `join_token_used_at` in the same
+  statement, keyed on the token value. A join racing a captain's
+  regeneration therefore cannot stamp the replacement token — the stale
+  token no longer matches and the join falls through to the invalid
+  redirect, which is what a regenerated-away link deserves. Departed
+  detection is a read-only fallback SELECT, so a departed join marks
+  nothing. Regenerate clears the stamp in its own UPDATE; revoke leaves it.
+- **The router moved to `createBrowserRouter`.** Blocking in-app navigation
+  away from a dirty draft needs `useBlocker`, which requires a data router.
+  Unmatched paths — including the removed `/players/new`-style form routes —
+  fall through to the wall, which already forwards signed-in visitors to
+  their team.
+- **One shared primitive set** (`client/src/components/disclosure.tsx`)
+  carries the whole row language: `useDisclosurePage` (one open draft,
+  pending-discard state, `beforeunload`, the navigation blocker),
+  `Expander` (a `grid-template-rows: 0fr → 1fr` transition; children stay
+  mounted through the close beat, and the inner overflow clip is released
+  ~200ms after opening so `position: sticky` game headings can still pin),
+  `summaryProps` (whole-row activation that ignores clicks/keys arriving
+  from interactive children — this is what lets Access keep Copy inside the
+  summary), `ConfirmAction`, and `FormShell`. The schedule's roster rows
+  use the same Expander/Chevron, so all motion obeys one reduced-motion
+  rule.
+- **Management pages render the list or the table, never both.** 5.75 kept
+  both DOM variants and hid one with CSS; with inline forms that would
+  mount two copies of the open draft fighting over dirty state, so a
+  `matchMedia` hook (`useIsDesktop`, 1024px) picks one. Desktop expansion
+  is a real second `<tr>`; its zero-height row carries the divider border
+  so an open form sits inside the record's borders.
+- **Optimistic attendance lives in two pieces**: `applyAttendance`
+  (shared, unit-tested) rewrites whatever shape a `["games", slug]` cache
+  holds — schedule list or single game — preserving identity of untouched
+  entries; the mutation snapshots every matching cache in `onMutate` and
+  restores them wholesale on error, so phrase, report, and personal chip
+  can never roll back separately. The collapse gate awaits a 500ms promise
+  started at the tap *after* server success, and a per-row tap counter
+  ensures only the latest tap's success collapses the row.
+- **`formatShortDate` compares wall-clock years in the team's timezone**,
+  not UTC, so a New Year's Eve game doesn't grow a year label early.
+- **The e2e fixture gained a past-game attendance row for Carol.** Removal
+  prunes forward RSVPs by design, so a player whose only response was on
+  an upcoming game purges cleanly after removal — the has-history purge
+  guard is only reachable end-to-end through played-game attendance.
+- **As-built palette/type:** light page `#b4dd96 → #86c264`, vertical, no
+  bands; HTML/manifest theme color `#86c264`; dark mode untouched. Status
+  colors as text measure ≥ 4.65:1 on both card surfaces in both modes.
+  Weights: 800 page/section headings, 700 game headings and report
+  emphasis, 600 names/nav/actions/labels, 400 body — the 650s are gone.
+- **Games management kept its own persisted past toggle** but restyled as
+  the same counted quiet disclosure; the upcoming list always renders so
+  the Add row exists even with zero upcoming games. The full Playwright
+  suite grew from 13 to 21 tests.
+
 ### Decision log (design-refinement interview)
 
 | Decision | Choice | Notes |
@@ -1233,19 +1294,25 @@ storage/calculation/display) was split out as backend-logic work — see the
 deferred subsection; its roadmap slot is decided after a second grill
 session, post-5.75.
 
-**5.8 — Design refinement** — designed July 2026, not yet built. A live
+**5.8 — Design refinement** — ✅ done (July 2026). A live
 mobile/desktop/dark-mode critique of 5.75 kept its scoreboard architecture
-but made actions quieter: short colored attendance phrases, compact game
-identity, more card separation, and fully inline row editing/creation on
-Players and Games. Access becomes copy-first and gains durable current-token
-“Opened” state via one small migration/API addition. Dedicated player/game
-form routes disappear; management keeps semantic desktop tables and mobile
-lists. Full behavior, visual calibration, test requirements, and decision
-log are in
-[its own section](#design-refinement-designed-july-2026-build-in-milestone-58),
-with implementation guidance in `handoffs/design-refinement.md`. Slotted
-before keyring because it changes the Access surface and current session-
-token code that milestone 6 will subsequently restructure.
+but made actions quieter: short colored attendance phrases (now fully
+optimistic with wholesale rollback), compact two-level game identity, more
+card separation, and fully inline row editing/creation on Players and
+Games through a shared disclosure/form primitive set. Access became
+copy-first and gained durable current-token “Opened” state via one small
+migration/API addition (`player.join_token_used_at`, marked atomically by
+the join exchange). Dedicated player/game form routes are gone; management
+keeps semantic desktop tables and mobile lists, now rendered exclusively
+per breakpoint. Full behavior, visual calibration, test requirements, and
+decision log are in
+[its own section](#design-refinement-designed-july-2026-build-in-milestone-58);
+as-built decisions in
+[its implementation notes](#design-refinement-implementation-notes-milestone-58-built-july-2026);
+the original implementation handoff remains in
+`handoffs/design-refinement.md`. Slotted before keyring because it changed
+the Access surface and current session-token code that milestone 6 will
+subsequently restructure.
 
 6. **Multi-team keyring** — one browser holding several teams, designed in
    [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
