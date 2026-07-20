@@ -1,12 +1,20 @@
-.toggleBar {
-  padding: 0 0 4px;
-  margin-bottom: 8px;
-}
-
 .section {
-  margin: 24px 0 16px;
+  margin: 16px 0 16px;
 }
 
 .empty {
   color: var(--text-secondary);
 }
+
+.pastSection { margin-top: 28px; }
+.pastDisclosure {
+  width: 100%; min-height: 44px; display: flex; align-items: center;
+  justify-content: space-between; gap: 8px; margin: 0 0 12px; padding: 10px 12px 10px 16px;
+  border: 0; border-radius: var(--radius); background: var(--surface);
+  box-shadow: var(--shadow-card); color: var(--text); font: 600 16px/1.4 var(--font-body);
+  text-align: left; cursor: pointer;
+}
+.pastDisclosure:hover { background: var(--surface-dim); }
+.pastDisclosure:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+/* Room for the first sticky heading to animate open without clipping. */
+.pastList { padding-top: 2px; }

@@ -51,7 +51,7 @@
 .urlBoxNew { border-color: var(--status-yes); }
 .urlText { font-size: 14px; color: var(--text-secondary); word-break: break-all; user-select: all; }
 .newLink { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.newLinkLabel { font-weight: 650; color: var(--status-yes); }
+.newLinkLabel { font-weight: 600; color: var(--status-yes); }
 
 .manageToggle {
   align-self: flex-start; display: flex; align-items: center; gap: 6px;

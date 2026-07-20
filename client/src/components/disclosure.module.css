@@ -11,6 +11,9 @@
 .expanderOpen { grid-template-rows: 1fr; transition: grid-template-rows 170ms ease-out; }
 .expanderInner { min-height: 0; overflow: hidden; opacity: 0; transition: opacity 130ms ease-in; }
 .expanderOpen .expanderInner { opacity: 1; transition: opacity 190ms ease-out; }
+/* After the open transition, release the clip so sticky headings inside
+   can pin to the viewport. */
+.expanderSettled .expanderInner { overflow: visible; }
 
 .chevron { color: var(--text-secondary); flex: none; transition: transform 170ms ease-out; }
 .chevronOpen { transform: rotate(90deg); }
@@ -72,4 +75,4 @@
 .confirmPrompt { margin: 0 0 10px; font-weight: 600; }
 .confirmError { margin: 0 0 10px; }
 .confirmActions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
-.doneBeat { margin: 0; font-weight: 650; color: var(--status-yes); min-height: 44px; display: flex; align-items: center; }
+.doneBeat { margin: 0; font-weight: 600; color: var(--status-yes); min-height: 44px; display: flex; align-items: center; }

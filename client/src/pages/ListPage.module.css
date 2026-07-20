@@ -17,7 +17,7 @@
 .gameSummaryText { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
 .gameSummaryText .note { margin-left: 0; text-align: left; font-size: 14px; }
 .addSummary { color: var(--link); }
-.addSummary .name { color: inherit; }
+.addSummary .name { color: inherit; flex: 1; }
 
 /* ---- Desktop table ---- */
 

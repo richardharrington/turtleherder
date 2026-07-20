@@ -1,11 +1,17 @@
-import type { GameWithAttendance, Me, Team } from "@turtleherder/shared";
+import {
+  formatShortDate,
+  type GameWithAttendance,
+  type Me,
+  type Team,
+} from "@turtleherder/shared";
 import { playerRowId } from "../GameCard.js";
 import styles from "./StatusStrip.module.css";
 
-function day(iso: string, timeZone: string) {
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone }).format(new Date(iso));
-}
-
+// The personal chip: "You: Playing Wed, Jul 22 ✓". Only the status
+// phrase carries semantic color; the abbreviated date adds the year only
+// outside the current calendar year (formatShortDate). Full-width on
+// mobile, content-width on desktop (CSS). It reads straight from the
+// games cache, so optimistic attendance updates it instantly.
 export function StatusStrip({ game, team, me, onOpen }: {
   game: GameWithAttendance;
   team: Team;
@@ -14,11 +20,16 @@ export function StatusStrip({ game, team, me, onOpen }: {
 }) {
   const player = game.players.find((candidate) => candidate.playerId === me.playerId);
   if (!player) return null;
-  const label = day(game.startsAt, team.timezone);
-  const status = player.status === "yes" ? `playing ${label} ✓`
-    : player.status === "no" ? `not playing ${label} →`
-      : player.status === "not_sure" ? `not sure for ${label} →`
-        : `no response yet for ${label} →`;
+  const date = formatShortDate(game.startsAt, team.timezone);
+  const status = player.status ?? "none";
+  const [phrase, rest] =
+    status === "yes"
+      ? ["Playing", `${date} ✓`]
+      : status === "no"
+        ? ["Not playing", `${date} →`]
+        : status === "not_sure"
+          ? ["Not sure", `for ${date} →`]
+          : ["No response", `for ${date} →`];
 
   return (
     <button
@@ -29,7 +40,8 @@ export function StatusStrip({ game, team, me, onOpen }: {
         window.setTimeout(() => document.getElementById(playerRowId(game.id, me.playerId))?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
       }}
     >
-      <strong>You:</strong> {status}
+      <span className={styles.you}>You:</span>{" "}
+      <strong className={styles[`status_${status}`]}>{phrase}</strong> {rest}
     </button>
   );
 }

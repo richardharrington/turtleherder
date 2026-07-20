@@ -1,7 +1,10 @@
 :root {
   color-scheme: light dark;
-  --page-green: #a8d889;
-  --page-green-dark: #78b75a;
+  /* Light page: a modern vertical descendant of the legacy green —
+     softer at the top, calmer below, no repeating bands. Tuned in
+     browser screenshots from the #b4dd96 → #86c264 starting point. */
+  --page-green: #b4dd96;
+  --page-green-dark: #86c264;
   --green: #287a3b;
   --green-dark: #1e6330;
   --bg: #92c96f;
@@ -33,23 +36,26 @@ html { min-height: 100%; background: var(--page-green-dark); }
 body {
   min-height: 100vh;
   margin: 0;
-  background: linear-gradient(145deg, var(--page-green), var(--page-green-dark)) fixed;
+  background: linear-gradient(to bottom, var(--page-green), var(--page-green-dark)) fixed;
   color: var(--text);
   font: 400 16px/1.45 var(--font-body);
 }
 button, input { font-family: inherit; }
-h1, h2, h3 {
+/* Calibrated hierarchy (milestone 5.8): 800 for real headings only,
+   real system weights elsewhere — no synthetic intermediates. */
+h1, h2 {
   font-family: var(--font-heading);
   font-weight: 800;
   letter-spacing: -0.025em;
   line-height: 1.2;
   margin: 0 0 16px;
 }
-h1 { font-size: 27px; }
-h2 { font-size: 20px; }
-h3 { font-size: 19px; }
+h3 { font-family: var(--font-heading); font-weight: 700; line-height: 1.2; margin: 0 0 16px; }
+h1 { font-size: 25px; }
+h2 { font-size: 19px; }
+h3 { font-size: 18px; }
 a { color: var(--link); }
-label { font-weight: 650; font-size: 14px; }
+label { font-weight: 600; font-size: 14px; }
 input[type="text"], input[type="datetime-local"] {
   width: 100%; min-height: 44px; padding: 8px 12px;
   font: inherit; color: inherit; background: var(--surface);
@@ -61,7 +67,7 @@ input[type="text"]:focus-visible, input[type="datetime-local"]:focus-visible {
 input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--green); }
 .error { color: var(--error); font-size: 14px; }
 
-@media (min-width: 640px) { h1 { font-size: 31px; } h2 { font-size: 22px; } }
+@media (min-width: 640px) { h1 { font-size: 29px; } h2 { font-size: 21px; } h3 { font-size: 19px; } }
 
 @media (prefers-color-scheme: dark) {
   :root {

@@ -21,7 +21,7 @@ test("marking attendance inline updates the row and the roster report", async ({
   ).toBeVisible();
 
   const bob = playerRow(page, "Bob");
-  await expect(bob).toContainText("hasn't responded");
+  await expect(bob.getByTestId("player-status")).toHaveText("No response");
   await expect(page.locator("body")).toContainText(
     "So far we have one player, one of whom is a woman.",
   );
@@ -36,17 +36,16 @@ test("marking attendance inline updates the row and the roster report", async ({
   await bob.click();
   await bob.getByLabel("Yes", { exact: true }).click();
 
-  await expect(bob).toContainText("will be playing");
-  // The selected answer shows briefly, then the row collapses.
+  // The colored phrase updates and the row collapses after the beat.
+  await expect(bob.getByTestId("player-status")).toHaveText("Playing");
   await expect(bob.getByTestId("attendance-editor")).toHaveCount(0);
-  await expect(bob.getByLabel("Playing")).toBeVisible();
   await expect(page.locator("body")).toContainText(
     "So far we have two players, one of whom is a woman.",
   );
 
   await carol.click();
   await carol.getByLabel("No", { exact: true }).click();
-  await expect(carol).toContainText("will not be playing");
+  await expect(carol.getByTestId("player-status")).toHaveText("Not playing");
 });
 
 test("the shareable single-game URL shows that game with controls", async ({
@@ -55,7 +54,9 @@ test("the shareable single-game URL shows that game with controls", async ({
   await page.goto("/testcats/games/2");
   await expect(page.locator("body")).toContainText("Wombats");
   await expect(page.locator("body")).toContainText("the red team");
-  await expect(playerRow(page, "Alice")).toContainText("will be playing");
+  await expect(
+    playerRow(page, "Alice").getByTestId("player-status"),
+  ).toHaveText("Playing");
   await expect(
     page.getByRole("link", { name: "See the whole schedule" }),
   ).toBeVisible();
@@ -64,46 +65,144 @@ test("the shareable single-game URL shows that game with controls", async ({
 test("the status strip jumps to the signed-in player's editor and persists after answering", async ({ page }) => {
   await page.goto("/testcats");
   const strip = page.getByTestId("status-strip");
-  await expect(strip).toContainText(/You: playing .+ ✓/);
+  // Abbreviated date, no year (the fixture game is in the current year).
+  await expect(strip).toContainText(/You: Playing \w{3}, \w{3} \d{1,2} ✓/);
   await strip.click();
   const alice = playerRow(page, "Alice");
   await expect(alice.getByTestId("attendance-editor")).toBeVisible();
   await expect(alice).toContainText("Alice, will you be playing?");
   await alice.getByLabel("Not sure", { exact: true }).click();
-  await expect(alice).toContainText("isn't sure");
+  await expect(alice.getByTestId("player-status")).toHaveText("Not sure");
   await expect(alice.getByTestId("attendance-editor")).toHaveCount(0);
-  await expect(strip).toContainText(/You: not sure for .+ →/);
+  await expect(strip).toContainText(/You: Not sure for .+ →/);
 
   await page.goto("/testcats/games/2");
   await expect(page.getByTestId("status-strip")).toBeVisible();
 });
 
-test("the past-games toggle reveals past games and persists", async ({
+test("attendance is optimistic: every surface updates before the server responds", async ({
+  page,
+}) => {
+  await page.goto("/testcats");
+  const strip = page.getByTestId("status-strip");
+  await expect(strip).toContainText(/You: Not sure/);
+
+  // Hold the PUT open so the pre-response state is observable.
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/attendance/**", async (route) => {
+    await gate;
+    await route.continue();
+  });
+
+  const alice = playerRow(page, "Alice");
+  await alice.click();
+  await alice.getByLabel("Yes", { exact: true }).click();
+
+  // Selected phrase, personal chip, and roster report all update
+  // immediately, while the request is still in flight.
+  await expect(alice.getByTestId("player-status")).toHaveText("Playing");
+  await expect(strip).toContainText(/You: Playing .+ ✓/);
+  await expect(page.locator("body")).toContainText(
+    "So far we have two players",
+  );
+
+  // …but the row cannot collapse before the server succeeds, no matter
+  // how long the 500ms confirmation clock has been done.
+  await page.waitForTimeout(700);
+  await expect(alice.getByTestId("attendance-editor")).toBeVisible();
+
+  release();
+  await expect(alice.getByTestId("attendance-editor")).toHaveCount(0);
+  await page.unroute("**/attendance/**");
+
+  // And with a fast server, the confirmation clock keeps the row open
+  // for its beat: it is still open immediately after the tap.
+  await alice.click();
+  await alice.getByLabel("Not sure", { exact: true }).click();
+  await expect(alice.getByTestId("attendance-editor")).toBeVisible();
+  await expect(alice.getByTestId("attendance-editor")).toHaveCount(0);
+});
+
+test("a failed attendance write rolls every optimistic surface back", async ({
+  page,
+}) => {
+  await page.goto("/testcats");
+  const strip = page.getByTestId("status-strip");
+  await expect(strip).toContainText(/You: Not sure/);
+
+  // The failure is delayed so the optimistic window is observable
+  // before the rollback lands.
+  await page.route("**/attendance/**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "boom" }),
+    });
+  });
+
+  const alice = playerRow(page, "Alice");
+  await alice.click();
+  await alice.getByLabel("Yes", { exact: true }).click();
+  await expect(alice.getByTestId("player-status")).toHaveText("Playing");
+
+  // Rollback: phrase, chip, and report all revert together; the editor
+  // stays open with a retryable error.
+  await expect(alice.getByTestId("player-status")).toHaveText("Not sure");
+  await expect(strip).toContainText(/You: Not sure/);
+  await expect(page.locator("body")).toContainText(
+    "So far we have one player",
+  );
+  await expect(alice.getByTestId("attendance-editor")).toBeVisible();
+  await expect(alice).toContainText("Error saving");
+
+  // Retrying after the failure clears succeeds and collapses.
+  await page.unroute("**/attendance/**");
+  await alice.getByLabel("Yes", { exact: true }).click();
+  await expect(alice.getByTestId("attendance-editor")).toHaveCount(0);
+  await expect(strip).toContainText(/You: Playing .+ ✓/);
+});
+
+test("past games sit below upcoming behind an always-counted disclosure", async ({
   page,
 }) => {
   await page.goto("/testcats");
   await expect(page.locator("body")).not.toContainText("Marmots");
 
-  await page.getByRole("button", { name: "Show past games" }).click();
-  await expect(page.locator("body")).toContainText("Past games");
+  // The count is visible even while collapsed, and the section sits
+  // below the upcoming games.
+  const disclosure = page.getByRole("button", { name: "Past games (1)" });
+  const upcomingBox = (await page
+    .getByRole("heading", { name: "Upcoming games" })
+    .boundingBox())!;
+  const pastBox = (await disclosure.boundingBox())!;
+  expect(pastBox.y).toBeGreaterThan(upcomingBox.y);
+
+  await disclosure.click();
   await expect(page.locator("body")).toContainText("Marmots");
 
-  // The Marmots game is past the attendance lock: past-tense report with
-  // no quota clause, "didn't respond" rows, and no attendance controls.
-  const marmots = page.locator("section", { hasText: "Marmots" });
-  await expect(marmots).toContainText("1 confirmed attendance");
+  // The Marmots game is past the attendance lock: honest one-line
+  // summary, past-tense report, locked past-tense rows, no controls.
+  const marmots = page.getByTestId("game-card").filter({ hasText: "Marmots" });
+  await expect(marmots).toContainText("1 player confirmed");
   await marmots.getByRole("button").click();
   await expect(marmots).toContainText("One player confirmed they were playing.");
-  await expect(marmots.getByTestId("player-row").first()).toContainText(
-    "didn't respond",
-  );
+  await expect(
+    marmots.getByTestId("player-row").filter({ hasText: "Alice" }).getByTestId("player-status"),
+  ).toHaveText("No response");
+  await expect(
+    marmots.getByTestId("player-row").filter({ hasText: "Carol" }).getByTestId("player-status"),
+  ).toHaveText("Confirmed");
   await expect(marmots.getByRole("radio")).toHaveCount(0);
 
   await page.reload();
   await expect(page.locator("body")).toContainText("Marmots");
   await expect(
-    page.getByRole("button", { name: "Hide past games" }),
-  ).toBeVisible();
+    page.getByRole("button", { name: "Past games (1)" }),
+  ).toHaveAttribute("aria-expanded", "true");
 });
 
 test("adding a player inline puts them on the roster and every game", async ({
@@ -125,7 +224,9 @@ test("adding a player inline puts them on the roster and every game", async ({
   await expect(page.getByLabel("Name")).toHaveCount(0);
 
   await page.goto("/testcats");
-  await expect(playerRow(page, "Davina")).toContainText("hasn't responded");
+  await expect(
+    playerRow(page, "Davina").getByTestId("player-status"),
+  ).toHaveText("No response");
 });
 
 test("editing a player inline is pessimistic: Saving…, Saved ✓, then collapse", async ({
@@ -196,7 +297,9 @@ test("adding and editing games inline, date-first, with inline delete", async ({
   page,
 }) => {
   await page.goto("/testcats/games");
-  await expect(page.getByRole("heading", { name: "Games" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Games", exact: true }),
+  ).toBeVisible();
   await expect(page.locator("body")).toContainText("Past games (1)");
 
   await page.getByTestId("add-game-row").click();
@@ -456,5 +559,58 @@ test.describe("access", () => {
       .click();
     await expect(page.getByTestId("join-url")).toBeVisible();
     await expect(carolRow).toContainText("Never opened");
+  });
+});
+
+test("management rows open and close from the keyboard", async ({ page }) => {
+  await page.goto("/testcats/players");
+  const bob = page.getByTestId("player-row").filter({ hasText: "Bob" });
+
+  await bob.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("Name")).toHaveValue("Bob");
+
+  // An untouched form closes freely with Space on the summary row.
+  await bob.focus();
+  await page.keyboard.press(" ");
+  await expect(page.getByLabel("Name")).toHaveCount(0);
+});
+
+test.describe("reduced motion", () => {
+  test("disclosure still works, instantly", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/testcats");
+    const bob = playerRow(page, "Bob");
+    await bob.click();
+    await expect(bob.getByTestId("attendance-editor")).toBeVisible();
+
+    await page.goto("/testcats/players");
+    const row = page.getByTestId("player-row").filter({ hasText: "Bob" });
+    await row.click();
+    await expect(page.getByLabel("Name")).toHaveValue("Bob");
+  });
+});
+
+test.describe("mobile", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("touch-list flows: schedule rows and inline player editing", async ({
+    page,
+  }) => {
+    await page.goto("/testcats");
+    const bob = playerRow(page, "Bob");
+    // Name and status share one line; the whole row is the edit target.
+    await expect(bob.getByTestId("player-status")).toHaveText("Playing");
+    await bob.click();
+    await expect(bob.getByTestId("attendance-editor")).toBeVisible();
+
+    // The players page renders the touch list below 1024px; the same
+    // inline form opens from the row.
+    await page.goto("/testcats/players");
+    const bobRow = page.getByTestId("player-row").filter({ hasText: "Bob" });
+    await bobRow.click();
+    await expect(page.getByLabel("Name")).toHaveValue("Bob");
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(page.getByLabel("Name")).toHaveCount(0);
   });
 });

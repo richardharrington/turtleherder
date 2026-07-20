@@ -141,20 +141,30 @@ export function Expander({
   children: ReactNode;
 }) {
   const [rendered, setRendered] = useState(open);
+  // Once the open transition finishes, the inner clip is released so
+  // position:sticky content (game headings) can pin to the viewport.
+  const [settled, setSettled] = useState(open);
   useEffect(() => {
     if (open) {
       setRendered(true);
-      return;
+      const timer = window.setTimeout(() => setSettled(true), 200);
+      return () => window.clearTimeout(timer);
     }
+    setSettled(false);
     const timer = window.setTimeout(() => setRendered(false), 200);
     return () => window.clearTimeout(timer);
   }, [open]);
 
+  const classes = [
+    styles.expander,
+    open ? styles.expanderOpen : "",
+    open && settled ? styles.expanderSettled : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div
-      className={open ? `${styles.expander} ${styles.expanderOpen}` : styles.expander}
-      aria-hidden={!open}
-    >
+    <div className={classes} aria-hidden={!open}>
       <div className={styles.expanderInner}>{rendered ? children : null}</div>
     </div>
   );
