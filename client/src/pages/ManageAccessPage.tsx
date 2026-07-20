@@ -69,6 +69,7 @@ function ActiveExpansion({
   page: DisclosurePage;
 }) {
   const queryClient = useQueryClient();
+  const key = `access-${access.playerId}`;
   const [manageOpen, setManageOpen] = useState(false);
   const [regenerated, setRegenerated] = useState(false);
   const [revoked, setRevoked] = useState(false);
@@ -91,7 +92,7 @@ function ActiveExpansion({
     onSuccess: () => {
       setRevoked(true);
       window.setTimeout(() => {
-        void invalidate().then(() => page.close());
+        void invalidate().then(() => page.closeIfOpen(key));
       }, 500);
     },
   });

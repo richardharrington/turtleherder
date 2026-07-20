@@ -46,6 +46,7 @@ function GameForm({
 }) {
   const queryClient = useQueryClient();
   const editing = game !== undefined;
+  const key = editing ? `game-${game.id}` : "add";
   const initialWhen = game ? instantToLocalInput(game.startsAt, team.timezone) : "";
   const [name, setName] = useState(game?.opponentName ?? "");
   const [color, setColor] = useState(game?.opponentColor ?? "");
@@ -79,7 +80,7 @@ function GameForm({
       void invalidate();
       setDirty(false);
       setSaved(true);
-      window.setTimeout(() => page.close(), 500);
+      window.setTimeout(() => page.closeIfOpen(key), 500);
     },
   });
 

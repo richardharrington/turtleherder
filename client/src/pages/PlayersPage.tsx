@@ -59,6 +59,7 @@ function PlayerForm({
 }) {
   const queryClient = useQueryClient();
   const editing = player !== undefined;
+  const key = editing ? `player-${player.id}` : "add";
   const [name, setName] = useState(player?.name ?? "");
   const [counts, setCounts] = useState(player?.countsTowardMinimum ?? false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -87,7 +88,7 @@ function PlayerForm({
       void invalidateRoster();
       setDirty(false);
       setSaved(true);
-      window.setTimeout(() => page.close(), 500);
+      window.setTimeout(() => page.closeIfOpen(key), 500);
     },
   });
 
@@ -190,6 +191,7 @@ function FormerActions({
   page: DisclosurePage;
 }) {
   const queryClient = useQueryClient();
+  const key = `former-${player.id}`;
   const [addedBack, setAddedBack] = useState(false);
 
   const invalidateAll = () =>
@@ -205,7 +207,7 @@ function FormerActions({
       // active list.
       setAddedBack(true);
       window.setTimeout(() => {
-        void invalidateAll().then(() => page.close());
+        void invalidateAll().then(() => page.closeIfOpen(key));
       }, 500);
     },
   });

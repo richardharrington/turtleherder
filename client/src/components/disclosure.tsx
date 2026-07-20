@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   type KeyboardEvent,
   type MouseEvent,
@@ -29,6 +30,14 @@ export interface DisclosurePage {
   toggle(key: string): void;
   /** Collapse without any dirty check — Cancel and post-save both use it. */
   close(): void;
+  /**
+   * Collapse, but only if `key` is still the open draft. A success-beat
+   * close is scheduled with a setTimeout from the moment a save/action
+   * resolves; by the time it fires, the user may already have switched to
+   * a different row, and an unconditional close() would yank that row
+   * shut out from under them.
+   */
+  closeIfOpen(key: string): void;
   setDirty(dirty: boolean): void;
   discard(): void;
   keepEditing(): void;
@@ -38,6 +47,10 @@ export function useDisclosurePage(): DisclosurePage {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
+  // Read by closeIfOpen's delayed callback, which needs the *current*
+  // openKey at fire time — not the one closed over when it was scheduled.
+  const openKeyRef = useRef(openKey);
+  openKeyRef.current = openKey;
 
   // In-app navigation away from a dirty draft is held while the open form
   // shows the discard confirmation.
@@ -74,6 +87,9 @@ export function useDisclosurePage(): DisclosurePage {
       open(target);
     },
     close: () => open(null),
+    closeIfOpen(key) {
+      if (openKeyRef.current === key) open(null);
+    },
     setDirty,
     discard() {
       if (pending === "navigation") {
