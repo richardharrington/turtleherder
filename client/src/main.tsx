@@ -6,9 +6,9 @@ import {
 } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter } from "react-router";
+import { createBrowserRouter, RouterProvider } from "react-router";
 import { ApiError } from "./api.js";
-import { App } from "./App.js";
+import { routes } from "./App.js";
 import "./main.css";
 
 // The wall, half of it: any 401 from any query or mutation — first visit,
@@ -47,12 +47,12 @@ const queryClient = new QueryClient({
   },
 });
 
+const router = createBrowserRouter(routes);
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </QueryClientProvider>
   </StrictMode>,
 );

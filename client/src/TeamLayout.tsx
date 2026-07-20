@@ -12,19 +12,14 @@ export interface TeamOutletContext {
   me: Me;
 }
 
-// The original gave each page its own <h1>; the schedule page's was
-// "Bobcats Game Schedule".
+// Calm one-word titles (milestone 5.8); the schedule page carries the
+// team name.
 function pageTitle(pathname: string, slug: string, teamName: string): string {
   const rest = pathname.replace(`/${slug}`, "").replace(/\/$/, "");
-  if (rest === "") return `${teamName} Game Schedule`;
-  if (rest === "/players") return "Manage Player Roster";
-  if (rest === "/players/new") return "Add New Player";
-  if (/^\/players\/\d+\/edit$/.test(rest)) return "Edit Player";
-  if (rest === "/games") return "Manage Games";
-  if (rest === "/games/new") return "Add New Game";
-  if (/^\/games\/\d+\/edit$/.test(rest)) return "Edit Game";
-  if (rest === "/access") return "Manage Team Access";
-  return `${teamName} Game Schedule`; // single-game page
+  if (rest === "/players") return "Players";
+  if (rest === "/games") return "Games";
+  if (rest === "/access") return "Access";
+  return `${teamName} Schedule`; // schedule + single-game page
 }
 
 // Nav destinations: bottom bar on mobile, sidebar on tablet/desktop.

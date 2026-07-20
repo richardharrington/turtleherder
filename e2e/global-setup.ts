@@ -56,9 +56,12 @@ export default async function globalSetup(): Promise<void> {
        VALUES (1, 'Marmots', NULL, $1), (1, 'Wombats', 'red', $2)`,
       [new Date(Date.now() - 7 * DAY), new Date(Date.now() + 3 * DAY)],
     );
+    // Carol's row on the played game is deliberate: departure pruning only
+    // touches unplayed games, so it survives her removal and keeps the
+    // permanent-purge guard exercisable end to end.
     await client.query(
       `INSERT INTO attendance (player_id, game_id, status)
-       VALUES (1, 2, 'yes')`,
+       VALUES (1, 2, 'yes'), (3, 1, 'yes')`,
     );
     await client.query(
       `INSERT INTO session (id, player_id) VALUES ($1, 1)`,

@@ -17,7 +17,7 @@ test("marking attendance inline updates the row and the roster report", async ({
 }) => {
   await page.goto("/testcats");
   await expect(
-    page.getByRole("heading", { name: "Testcats Game Schedule" }),
+    page.getByRole("heading", { name: "Testcats Schedule" }),
   ).toBeVisible();
 
   const bob = playerRow(page, "Bob");
@@ -91,9 +91,9 @@ test("the past-games toggle reveals past games and persists", async ({
   // The Marmots game is past the attendance lock: past-tense report with
   // no quota clause, "didn't respond" rows, and no attendance controls.
   const marmots = page.locator("section", { hasText: "Marmots" });
-  await expect(marmots).toContainText("0 confirmed attendance");
+  await expect(marmots).toContainText("1 confirmed attendance");
   await marmots.getByRole("button").click();
-  await expect(marmots).toContainText("No players confirmed they were playing.");
+  await expect(marmots).toContainText("One player confirmed they were playing.");
   await expect(marmots.getByTestId("player-row").first()).toContainText(
     "didn't respond",
   );
@@ -106,78 +106,150 @@ test("the past-games toggle reveals past games and persists", async ({
   ).toBeVisible();
 });
 
-test("adding a player puts them on the roster and every game", async ({
+test("adding a player inline puts them on the roster and every game", async ({
   page,
 }) => {
   await page.goto("/testcats/players");
-  await expect(
-    page.getByRole("heading", { name: "Manage Player Roster" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Players" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Add new player" }).click();
+  // Add is the final row of the table and expands to the inline form.
+  await page.getByTestId("add-player-row").click();
   await page.getByLabel("Name").fill("Davina");
   await page.getByLabel(/Woman/).check();
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
 
-  await expect(page.locator("body")).toContainText("Player added");
-  await page
-    .getByRole("link", { name: "Return to roster management page" })
-    .click();
-  await expect(page.locator("body")).toContainText("Davina");
+  // Collapses after the save; the new row shows Name + quota noun.
+  const davina = page.getByTestId("player-row").filter({ hasText: "Davina" });
+  await expect(davina).toBeVisible();
+  await expect(davina).toContainText("Woman");
+  await expect(page.getByLabel("Name")).toHaveCount(0);
 
   await page.goto("/testcats");
-  await expect(playerRow(page, "Davina")).toContainText(
-    "hasn't responded",
-  );
+  await expect(playerRow(page, "Davina")).toContainText("hasn't responded");
 });
 
-test("adding a game shows it under manage games and the schedule", async ({
+test("editing a player inline is pessimistic: Saving…, Saved ✓, then collapse", async ({
+  page,
+}) => {
+  await page.goto("/testcats/players");
+
+  // Hold the PUT long enough to observe the pending label.
+  await page.route("**/api/teams/testcats/players/*", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await route.continue();
+  });
+
+  const davina = page.getByTestId("player-row").filter({ hasText: "Davina" });
+  await davina.click();
+  await page.getByLabel("Name").fill("Dee");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+
+  await expect(page.getByRole("button", { name: "Saving…" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Saved ✓" })).toBeVisible();
+  await expect(
+    page.getByTestId("player-row").filter({ hasText: "Dee" }),
+  ).toBeVisible();
+  // And it eventually collapses.
+  await expect(page.getByLabel("Name")).toHaveCount(0);
+  await page.unroute("**/api/teams/testcats/players/*");
+});
+
+test("only one row opens at a time; a dirty draft demands a discard decision", async ({
+  page,
+}) => {
+  await page.goto("/testcats/players");
+  const bob = page.getByTestId("player-row").filter({ hasText: "Bob" });
+  const carol = page.getByTestId("player-row").filter({ hasText: "Carol" });
+
+  // Untouched forms close freely when another row opens.
+  await bob.click();
+  await expect(page.getByLabel("Name")).toHaveValue("Bob");
+  await carol.click();
+  await expect(page.getByLabel("Name")).toHaveValue("Carol");
+
+  // A dirty draft intercepts the switch with an inline confirmation.
+  await page.getByLabel("Name").fill("Carolyn");
+  await bob.click();
+  const discard = page.getByTestId("discard-confirm");
+  await expect(discard).toContainText("Discard unsaved changes?");
+  await discard.getByRole("button", { name: "Keep editing" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("Carolyn");
+
+  // Navigating away from the dirty draft is also intercepted.
+  await page.getByRole("link", { name: "Games" }).click();
+  await expect(page).toHaveURL("/testcats/players");
+  await expect(page.getByTestId("discard-confirm")).toBeVisible();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+
+  // Discarding opens the row the user was headed to, values untouched.
+  await bob.click();
+  await page.getByTestId("discard-confirm").getByRole("button", { name: "Discard" }).click();
+  await expect(page.getByLabel("Name")).toHaveValue("Bob");
+  await expect(carol).toContainText("Carol");
+
+  // Cancel closes an open form without ceremony.
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByLabel("Name")).toHaveCount(0);
+});
+
+test("adding and editing games inline, date-first, with inline delete", async ({
   page,
 }) => {
   await page.goto("/testcats/games");
-  await expect(
-    page.getByRole("heading", { name: "Manage Games" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Games" })).toBeVisible();
+  await expect(page.locator("body")).toContainText("Past games (1)");
 
-  await page.getByRole("link", { name: "Add new game" }).click();
+  await page.getByTestId("add-game-row").click();
   await page.getByLabel("Opposing team name").fill("Ocelots");
   await page.getByLabel("Opposing team color").fill("blue");
   await page.getByLabel("Date and time").fill("2027-09-01T18:30");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
 
-  await expect(page.locator("body")).toContainText("Game added");
-  await page
-    .getByRole("link", { name: "Return to games management page" })
-    .click();
-  await expect(page.locator("body")).toContainText(
-    /Ocelots on \w+day, September 1, 2027 at 6:30\spm/,
-  );
+  // Date-first summary; the year shows because 2027 isn't the current year.
+  const ocelots = page.getByTestId("game-row").filter({ hasText: "Ocelots" });
+  await expect(ocelots).toContainText("Wed, Sep 1, 2027 · 6:30 pm");
+  await expect(ocelots).toContainText("blue");
 
   await page.goto("/testcats");
   await expect(page.locator("body")).toContainText("Ocelots");
   await expect(page.locator("body")).toContainText("the blue team");
+
+  // Inline edit.
+  await page.goto("/testcats/games");
+  await ocelots.click();
+  await page.getByLabel("Opposing team color").fill("navy");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(ocelots).toContainText("navy");
+  await expect(page.getByLabel("Opposing team color")).toHaveCount(0);
+
+  // Inline delete names the game and its consequences — no native dialog.
+  await ocelots.click();
+  await page.getByRole("button", { name: "Delete game…" }).click();
+  const confirm = page.getByTestId("delete-game-confirm");
+  await expect(confirm).toContainText(
+    /Delete the game against Ocelots on \w+day, September 1, 2027 at 6:30\spm\?/,
+  );
+  await confirm.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(ocelots).toHaveCount(0);
 });
 
-test("removing a player is reversible: former players list, dead link, add back", async ({
+test("removing a player is reversible: former players, dead link, guarded purge, add back", async ({
   page,
 }) => {
   await page.goto("/testcats/players");
-  const carolRow = page.getByRole("row").filter({ hasText: "Carol" });
+  const carol = page.getByTestId("player-row").filter({ hasText: "Carol" });
 
-  page.on("dialog", (dialog) => {
-    expect(dialog.message()).toBe(
-      "Remove Carol from the roster? Their game history stays, " +
-        "and a captain can add them back later.",
-    );
-    void dialog.accept();
-  });
-  await carolRow.getByRole("button", { name: "Remove" }).click();
+  // Remove lives below the inline form, behind an inline confirmation.
+  await carol.click();
+  await page.getByRole("button", { name: "Remove from roster…" }).click();
+  const confirm = page.getByTestId("inline-confirm");
+  await expect(confirm).toContainText(
+    "Remove Carol from the roster? Their game history stays, and a " +
+      "captain can add them back later.",
+  );
+  await confirm.getByRole("button", { name: "Remove", exact: true }).click();
 
-  await expect(
-    page.getByRole("row").filter({ hasText: "Carol" }).getByRole("button", {
-      name: "Remove",
-    }),
-  ).toHaveCount(0);
+  await expect(carol).toHaveCount(0);
   await page.goto("/testcats");
   await expect(page.locator("body")).not.toContainText("Carol");
 
@@ -192,20 +264,71 @@ test("removing a player is reversible: former players list, dead link, add back"
     "ask your captain to add you back",
   );
 
-  // Alice (a captain) sees her under Former players and adds her back.
+  // Alice (a captain) finds her under the always-counted disclosure.
   await page.goto("/testcats/players");
-  await page.getByRole("button", { name: "Show former players" }).click();
-  await expect(page.locator("body")).toContainText("Former players");
-  const formerCarol = page.getByRole("row").filter({ hasText: "Carol" });
-  await expect(formerCarol).toContainText(/Carol.+2026/);
-  await formerCarol.getByRole("button", { name: "Add back" }).click();
+  await page.getByRole("button", { name: "Former players (1)" }).click();
+  const formerCarol = page.getByTestId("former-row").filter({ hasText: "Carol" });
+  await expect(formerCarol).toContainText(/2026/);
+  await formerCarol.click();
 
-  await expect(page.locator("body")).toContainText("No former players.");
+  // Permanent deletion is guarded: Carol has recorded attendance.
+  await page.getByRole("button", { name: "Delete permanently…" }).click();
+  await page
+    .getByTestId("purge-confirm")
+    .getByRole("button", { name: "Delete permanently", exact: true })
+    .click();
+  await expect(page.getByTestId("purge-confirm")).toContainText(
+    "Carol has game history",
+  );
+
+  // Add back revives the row — the confirmation names the link consequence.
+  await page.getByRole("button", { name: "Add back to roster…" }).click();
+  const addBack = page.getByTestId("add-back-confirm");
+  await expect(addBack).toContainText(
+    "Their existing personal link will immediately work again.",
+  );
+  await addBack.getByRole("button", { name: "Add back", exact: true }).click();
+  await expect(addBack).toContainText("Added back ✓");
+
   await expect(
-    page.getByRole("row").filter({ hasText: "Carol" }).getByRole("button", {
-      name: "Remove",
-    }),
+    page.getByTestId("player-row").filter({ hasText: "Carol" }),
   ).toBeVisible();
+  await expect(page.locator("body")).toContainText("Former players (0)");
+});
+
+test("a permanent purge deletes a never-played typo from Former players", async ({
+  page,
+}) => {
+  await page.goto("/testcats/players");
+
+  await page.getByTestId("add-player-row").click();
+  await page.getByLabel("Name").fill("Typo");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  const typo = page.getByTestId("player-row").filter({ hasText: "Typo" });
+  await expect(typo).toBeVisible();
+
+  await typo.click();
+  await page.getByRole("button", { name: "Remove from roster…" }).click();
+  await page
+    .getByTestId("inline-confirm")
+    .getByRole("button", { name: "Remove", exact: true })
+    .click();
+  await expect(typo).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Former players (1)" }).click();
+  const formerTypo = page.getByTestId("former-row").filter({ hasText: "Typo" });
+  await formerTypo.click();
+  await page.getByRole("button", { name: "Delete permanently…" }).click();
+  const confirm = page.getByTestId("purge-confirm");
+  await expect(confirm).toContainText(
+    "Permanently delete Typo? This erases the player entirely and cannot be undone.",
+  );
+  await confirm
+    .getByRole("button", { name: "Delete permanently", exact: true })
+    .click();
+
+  await expect(formerTypo).toHaveCount(0);
+  await expect(page.locator("body")).toContainText("Former players (0)");
 });
 
 test("visiting / while signed in forwards to the team", async ({ page }) => {
@@ -213,7 +336,7 @@ test("visiting / while signed in forwards to the team", async ({ page }) => {
   // team they last visited (remembered in localStorage).
   await page.goto("/testcats");
   await expect(
-    page.getByRole("heading", { name: "Testcats Game Schedule" }),
+    page.getByRole("heading", { name: "Testcats Schedule" }),
   ).toBeVisible();
 
   await page.goto("/");
@@ -228,7 +351,7 @@ test("a walled-off team URL explains itself instead of silently forwarding", asy
   // Testcats, the wall explains one-team-at-a-time and offers the link.
   await page.goto("/testcats");
   await expect(
-    page.getByRole("heading", { name: "Testcats Game Schedule" }),
+    page.getByRole("heading", { name: "Testcats Schedule" }),
   ).toBeVisible();
 
   await page.goto("/otters");
@@ -243,7 +366,7 @@ test("a walled-off team URL explains itself instead of silently forwarding", asy
 
   await page.getByRole("link", { name: "Go to Testcats" }).click();
   await expect(
-    page.getByRole("heading", { name: "Testcats Game Schedule" }),
+    page.getByRole("heading", { name: "Testcats Schedule" }),
   ).toBeVisible();
 });
 
@@ -256,7 +379,7 @@ test("a captain can see, copy, regenerate, and revoke join links", async ({
   // The Access nav item is captain-only; Alice is the captain.
   await page.getByRole("link", { name: "Access" }).click();
   await expect(
-    page.getByRole("heading", { name: "Manage Team Access" }),
+    page.getByRole("heading", { name: "Access" }),
   ).toBeVisible();
 
   // Desktop viewport (≥1024px): every link is visible in the table.

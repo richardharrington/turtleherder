@@ -1,32 +1,40 @@
-import { Route, Routes } from "react-router";
-import { GameFormPage } from "./pages/GameFormPage.js";
+import type { RouteObject } from "react-router";
 import { GamePage } from "./pages/GamePage.js";
 import { GamesPage } from "./pages/GamesPage.js";
 import { ManageAccessPage } from "./pages/ManageAccessPage.js";
-import { PlayerFormPage } from "./pages/PlayerFormPage.js";
 import { PlayersPage } from "./pages/PlayersPage.js";
 import { SchedulePage } from "./pages/SchedulePage.js";
 import { WallPage } from "./pages/WallPage.js";
 import { TeamLayout } from "./TeamLayout.js";
 
-export function App() {
-  return (
-    <Routes>
-      {/* The friendly wall: signed-out visitors land here (401 bounce or
-          an invalid join link's /?join=invalid redirect). Signed-in
-          visitors are forwarded to their team. */}
-      <Route path="/" element={<WallPage />} />
-      <Route path="/:teamSlug" element={<TeamLayout />}>
-        <Route index element={<SchedulePage />} />
-        <Route path="games" element={<GamesPage />} />
-        <Route path="games/new" element={<GameFormPage />} />
-        <Route path="games/:gameId" element={<GamePage />} />
-        <Route path="games/:gameId/edit" element={<GameFormPage />} />
-        <Route path="players" element={<PlayersPage />} />
-        <Route path="players/new" element={<PlayerFormPage />} />
-        <Route path="players/:playerId/edit" element={<PlayerFormPage />} />
-        <Route path="access" element={<ManageAccessPage />} />
-      </Route>
-    </Routes>
-  );
-}
+// Add and edit live inline on the Players/Games pages (milestone 5.8) —
+// there are no dedicated form routes. The shareable single-game route
+// stays. A route-object tree (data router) so dirty inline drafts can
+// block in-app navigation via useBlocker.
+export const routes: RouteObject[] = [
+  {
+    // The friendly wall: signed-out visitors land here (401 bounce or an
+    // invalid join link's /?join=invalid redirect). Signed-in visitors
+    // are forwarded to their team.
+    path: "/",
+    element: <WallPage />,
+  },
+  {
+    path: "/:teamSlug",
+    element: <TeamLayout />,
+    children: [
+      { index: true, element: <SchedulePage /> },
+      { path: "games", element: <GamesPage /> },
+      { path: "games/:gameId", element: <GamePage /> },
+      { path: "players", element: <PlayersPage /> },
+      { path: "access", element: <ManageAccessPage /> },
+    ],
+  },
+  {
+    // Anything unmatched — including the retired /players/new and
+    // /games/:id/edit form routes — lands on the wall, which forwards
+    // signed-in visitors back to their team.
+    path: "*",
+    element: <WallPage />,
+  },
+];
