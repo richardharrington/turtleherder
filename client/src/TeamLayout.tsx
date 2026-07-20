@@ -102,13 +102,16 @@ export function TeamLayout() {
   const team = teamQuery.data;
   const me = meQuery.data;
 
+  const relativePath = location.pathname.replace(`/${teamSlug}`, "");
+  const widePage = relativePath.startsWith("/players") || relativePath === "/games" || relativePath === "/access";
+
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <div className={styles.teamName}>{team.name}</div>
         <NavItems team={team} me={me} itemClass={styles.sidebarItem!} />
       </aside>
-      <main className={styles.main}>
+      <main className={`${styles.main} ${widePage ? styles.wideMain : styles.scheduleMain}`}>
         <h1>{pageTitle(location.pathname, teamSlug!, team.name)}</h1>
         <Outlet context={{ team, me } satisfies TeamOutletContext} />
       </main>

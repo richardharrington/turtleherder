@@ -4,8 +4,8 @@
   "description": "Who's coming to the game?",
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#5ec942",
-  "background_color": "#ffffff",
+  "theme_color": "#78b75a",
+  "background_color": "#a8d889",
   "icons": [
     {
       "src": "/icon-192.png",

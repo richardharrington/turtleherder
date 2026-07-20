@@ -1,5 +1,3 @@
-import "@fontsource-variable/inter";
-import "@fontsource/merriweather/700.css";
 import {
   MutationCache,
   QueryCache,

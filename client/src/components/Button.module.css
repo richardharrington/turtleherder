@@ -19,7 +19,7 @@
 
 .button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(94, 201, 66, 0.45);
+  box-shadow: 0 0 0 3px var(--focus);
 }
 
 .primary {
@@ -53,5 +53,9 @@
 .small {
   font-size: 14px;
   padding: 4px 12px;
-  min-height: 36px;
+  min-height: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .primary { color: #111713; }
 }
