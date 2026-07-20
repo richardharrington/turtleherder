@@ -30,9 +30,11 @@ function formatRevokedAt(iso: string, timeZone: string): string {
 function PlayerAccessRow({
   access,
   team,
+  desktop = false,
 }: {
   access: PlayerAccess;
   team: Team;
+  desktop?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [revealed, setRevealed] = useState(false);
@@ -60,6 +62,19 @@ function PlayerAccessRow({
     await navigator.clipboard.writeText(joinUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  if (desktop) {
+    return (
+      <tr data-testid="access-row">
+        <td className={styles.name}>{access.name}</td>
+        <td>{joinUrl !== null ? <span className={styles.desktopLink}><span className={styles.linkText}>{joinUrl}</span><Button variant="secondary" small onClick={copy}>{copied ? "Copied!" : "Copy"}</Button></span> : <span className={styles.revoked}>Link revoked {access.revokedAt !== null && formatRevokedAt(access.revokedAt, team.timezone)}</span>}</td>
+        <td><span className={styles.actions}>
+          <Button variant="secondary" small disabled={pending} onClick={() => { if (window.confirm(`Regenerate ${access.name}'s link? Their old link will stop working and they will be signed out.`)) regenerateMutation.mutate(); }}>Regenerate</Button>
+          {joinUrl !== null && <Button variant="danger" small disabled={pending} onClick={() => { if (window.confirm(`Revoke ${access.name}'s link? They will be signed out and can't get back in until you regenerate a link for them.`)) revokeMutation.mutate(); }}>Revoke</Button>}
+        </span></td>
+      </tr>
+    );
   }
 
   return (
@@ -167,11 +182,17 @@ export function ManageAccessPage() {
         them. Regenerating or revoking a link signs that player out
         everywhere.
       </p>
-      <ul className={styles.list}>
+      <ul className={`${styles.list} ${styles.mobileList}`}>
         {accessQuery.data.map((access) => (
           <PlayerAccessRow key={access.playerId} access={access} team={team} />
         ))}
       </ul>
+      <div className={styles.desktopTable}>
+        <table className={styles.table}>
+          <thead><tr><th>Player</th><th>Join link</th><th>Actions</th></tr></thead>
+          <tbody>{accessQuery.data.map((access) => <PlayerAccessRow desktop key={access.playerId} access={access} team={team} />)}</tbody>
+        </table>
+      </div>
     </>
   );
 }

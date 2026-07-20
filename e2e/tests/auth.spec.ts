@@ -46,9 +46,7 @@ test("a valid join link sets the session cookie and lands on the team", async ({
   await expect(
     page.getByRole("heading", { name: "Testcats Game Schedule" }),
   ).toBeVisible();
-  await expect(page.getByTestId("personal-question")).toContainText(
-    "Alice, will you be coming",
-  );
+  await expect(page.getByTestId("status-strip")).toContainText("You:");
 
   const session = (await context.cookies()).find(
     (c) => c.name === "th_session",

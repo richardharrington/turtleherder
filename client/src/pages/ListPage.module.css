@@ -1,54 +1,17 @@
-/* Shared by the roster and game management pages: a white card holding
-   one row per item with its actions, and an add button below. */
-
-.list {
-  list-style: none;
-  margin: 0 0 24px;
-  padding: 0 16px;
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
-}
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-  padding: 12px 0;
-}
-
-.row + .row {
-  border-top: 1px solid var(--border);
-}
-
-.rowLabel {
-  flex: 1 1 200px;
-}
-
-.rowActions {
-  display: flex;
-  gap: 8px;
-}
-
-.rowNote {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-.toggleBar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: var(--bg);
-  padding: 8px 0;
-  margin-bottom: 16px;
-}
-
-.section {
-  margin: 24px 0 16px;
-}
-
-.empty {
-  color: var(--text-secondary);
-}
+.list { list-style: none; margin: 0 0 24px; padding: 0 14px; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-card); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 0; }
+.row + .row { border-top: 1px solid var(--border); }
+.rowLabel { flex: 1 1 200px; }
+.rowActions, .tableActions { display: flex; gap: 8px; }
+.rowNote { color: var(--text-secondary); font-size: .875rem; }
+.toggleBar { padding: 0 0 8px; margin-bottom: 8px; }
+.section { margin: 24px 0 12px; }
+.empty { color: var(--text-secondary); }
+.desktopOnly { display: none; }
+.table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: hidden; margin-bottom: 24px; }
+.table th { text-align: left; color: var(--text-secondary); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; background: var(--surface-dim); }
+.table th, .table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.table tbody tr:last-child td { border-bottom: 0; }
+.tableActions { justify-content: flex-end; white-space: nowrap; }
+.table th:last-child { text-align: right; }
+@media (min-width: 1024px) { .mobileOnly { display: none; } .desktopOnly { display: block; } }

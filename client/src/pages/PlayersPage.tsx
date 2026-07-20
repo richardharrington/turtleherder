@@ -69,7 +69,7 @@ export function PlayersPage() {
 
   return (
     <>
-      <ul className={styles.list}>
+      <ul className={`${styles.list} ${styles.mobileOnly}`}>
         {playersQuery.data.map((player) => (
           <li key={player.id} className={styles.row}>
             <span className={styles.rowLabel}>{player.name}</span>
@@ -101,6 +101,22 @@ export function PlayersPage() {
           </li>
         ))}
       </ul>
+      <div className={styles.desktopOnly}>
+        <table className={styles.table}>
+          <thead><tr><th>Player</th><th>Actions</th></tr></thead>
+          <tbody>{playersQuery.data.map((player) => (
+            <tr key={player.id}>
+              <td>{player.name}</td>
+              <td className={styles.tableActions}>
+                <ButtonLink variant="secondary" small to={`/${team.slug}/players/${player.id}/edit`}>Edit</ButtonLink>
+                <Button variant="danger" small onClick={() => {
+                  if (window.confirm(`Remove ${player.name} from the roster? Their game history stays, and a captain can add them back later.`)) removeMutation.mutate(player.id);
+                }}>Remove</Button>
+              </td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
       {removeMutation.isError && (
         <p className="error">
           {removeMutation.error instanceof ApiError &&
@@ -130,7 +146,7 @@ export function PlayersPage() {
             ) : (
               <>
                 <h2 className={styles.section}>Former players</h2>
-                <ul className={styles.list}>
+                <ul className={`${styles.list} ${styles.mobileOnly}`}>
                   {formerQuery.data.map((player) => (
                     <li key={player.id} className={styles.row}>
                       <span className={styles.rowLabel}>
@@ -152,6 +168,18 @@ export function PlayersPage() {
                     </li>
                   ))}
                 </ul>
+                <div className={styles.desktopOnly}>
+                  <table className={styles.table}>
+                    <thead><tr><th>Player</th><th>Left</th><th>Actions</th></tr></thead>
+                    <tbody>{formerQuery.data.map((player) => (
+                      <tr key={player.id}>
+                        <td>{player.name}</td>
+                        <td>{formatPlainDate(player.leftAt, team.timezone)}</td>
+                        <td className={styles.tableActions}><Button variant="secondary" small disabled={addBackMutation.isPending} onClick={() => addBackMutation.mutate(player.id)}>Add back</Button></td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
                 {addBackMutation.isError && (
                   <p className="error">Error adding player back!</p>
                 )}

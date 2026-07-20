@@ -48,17 +48,24 @@ export function GamesPage() {
   const past = gamesQuery.data.filter((g) => isGamePast(g.startsAt, now));
   const future = gamesQuery.data.filter((g) => !isGamePast(g.startsAt, now));
 
-  function gameRow(game: GameWithAttendance) {
+  function gameDetails(game: GameWithAttendance) {
     const date = formatGameDate(game.startsAt, team.timezone);
     const time = formatGameTime(game.startsAt, team.timezone);
-    const label =
-      game.opponentName === null
-        ? `Bye week on ${date}`
-        : `${game.opponentName} on ${date} at ${time}`;
-    const confirmText =
-      game.opponentName === null
-        ? `Do you really want to delete the bye week on ${date}?`
-        : `Do you really want to delete the game against ${game.opponentName} on ${date} at ${time}?`;
+    return {
+      date,
+      time,
+      opponent: game.opponentName ?? "Bye week",
+      label: game.opponentName === null ? `Bye week on ${date}` : `${game.opponentName} on ${date} at ${time}`,
+      confirmText: game.opponentName === null ? `Do you really want to delete the bye week on ${date}?` : `Do you really want to delete the game against ${game.opponentName} on ${date} at ${time}?`,
+    };
+  }
+
+  function remove(game: GameWithAttendance) {
+    if (window.confirm(gameDetails(game).confirmText)) deleteMutation.mutate(game.id);
+  }
+
+  function gameRow(game: GameWithAttendance) {
+    const { label } = gameDetails(game);
     return (
       <li key={game.id} className={styles.row}>
         <span className={styles.rowLabel}>{label}</span>
@@ -74,9 +81,7 @@ export function GamesPage() {
             variant="danger"
             small
             onClick={() => {
-              if (window.confirm(confirmText)) {
-                deleteMutation.mutate(game.id);
-              }
+              remove(game)
             }}
           >
             Delete
@@ -84,6 +89,22 @@ export function GamesPage() {
         </span>
       </li>
     );
+  }
+
+  function gameTable(games: GameWithAttendance[]) {
+    return <div className={styles.desktopOnly}><table className={styles.table}>
+      <thead><tr><th>Opponent</th><th>Date</th><th>Time</th><th>Actions</th></tr></thead>
+      <tbody>{games.map((game) => {
+        const details = gameDetails(game);
+        return <tr key={game.id}>
+          <td>{details.opponent}</td><td>{details.date}</td><td>{details.time}</td>
+          <td className={styles.tableActions}>
+            <ButtonLink variant="secondary" small to={`/${team.slug}/games/${game.id}/edit`}>Edit</ButtonLink>
+            <Button variant="danger" small onClick={() => remove(game)}>Delete</Button>
+          </td>
+        </tr>;
+      })}</tbody>
+    </table></div>;
   }
 
   return (
@@ -98,7 +119,8 @@ export function GamesPage() {
         (past.length > 0 ? (
           <>
             <h2 className={styles.section}>Past games</h2>
-            <ul className={styles.list}>{past.map(gameRow)}</ul>
+            <ul className={`${styles.list} ${styles.mobileOnly}`}>{past.map(gameRow)}</ul>
+            {gameTable(past)}
           </>
         ) : (
           <p className={styles.empty}>No past games.</p>
@@ -107,7 +129,8 @@ export function GamesPage() {
       {future.length > 0 && (
         <>
           <h2 className={styles.section}>Future games</h2>
-          <ul className={styles.list}>{future.map(gameRow)}</ul>
+          <ul className={`${styles.list} ${styles.mobileOnly}`}>{future.map(gameRow)}</ul>
+          {gameTable(future)}
         </>
       )}
 

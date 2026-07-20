@@ -20,11 +20,15 @@
 
 .checkboxField {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   font-weight: 400;
   font-size: 16px;
+  min-height: 44px;
 }
+.checkboxField span { display: flex; flex-direction: column; }
+.checkboxField strong { font-weight: 700; }
+.checkboxField small { color: var(--text-secondary); font-size: 14px; }
 
 .actions {
   display: flex;

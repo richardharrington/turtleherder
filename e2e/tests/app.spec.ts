@@ -21,58 +21,61 @@ test("marking attendance inline updates the row and the roster report", async ({
   ).toBeVisible();
 
   const bob = playerRow(page, "Bob");
-  await expect(bob).toContainText("hasn't responded yet");
+  await expect(bob).toContainText("hasn't responded");
   await expect(page.locator("body")).toContainText(
     "So far we have one player, one of whom is a woman.",
   );
 
-  // .click(), not .check(): the radios are controlled inputs that only
-  // re-render as checked after the mutation and refetch complete.
+  // Editing is on demand, and only one roster row is open at a time.
+  await bob.click();
+  await expect(bob.getByTestId("attendance-editor")).toBeVisible();
+  const carol = playerRow(page, "Carol");
+  await carol.click();
+  await expect(bob.getByTestId("attendance-editor")).toHaveCount(0);
+  await expect(carol.getByTestId("attendance-editor")).toBeVisible();
+  await bob.click();
   await bob.getByLabel("Yes", { exact: true }).click();
 
   await expect(bob).toContainText("will be playing");
-  await expect(bob.getByLabel("Yes", { exact: true })).toBeChecked();
+  // The selected answer shows briefly, then the row collapses.
+  await expect(bob.getByTestId("attendance-editor")).toHaveCount(0);
+  await expect(bob.getByLabel("Playing")).toBeVisible();
   await expect(page.locator("body")).toContainText(
     "So far we have two players, one of whom is a woman.",
   );
 
-  await playerRow(page, "Carol").getByLabel("No", { exact: true }).click();
-  await expect(playerRow(page, "Carol")).toContainText("will not be playing");
+  await carol.click();
+  await carol.getByLabel("No", { exact: true }).click();
+  await expect(carol).toContainText("will not be playing");
 });
 
 test("the shareable single-game URL shows that game with controls", async ({
   page,
 }) => {
   await page.goto("/testcats/games/2");
-  await expect(page.locator("body")).toContainText("against Wombats");
-  await expect(page.locator("body")).toContainText("(the red team)");
+  await expect(page.locator("body")).toContainText("Wombats");
+  await expect(page.locator("body")).toContainText("the red team");
   await expect(playerRow(page, "Alice")).toContainText("will be playing");
   await expect(
     page.getByRole("link", { name: "See the whole schedule" }),
   ).toBeVisible();
 });
 
-test("the personal question card asks about the game and saves a status", async ({
-  page,
-}) => {
-  // On the schedule it's about the next upcoming non-bye game (Wombats),
-  // addressed to the signed-in player with their status preselected.
+test("the status strip jumps to the signed-in player's editor and persists after answering", async ({ page }) => {
   await page.goto("/testcats");
-  const card = page.getByTestId("personal-question");
-  await expect(card).toContainText(
-    /Alice, will you be coming to the game on .+ against Wombats at .+\?/,
-  );
-  await expect(card.getByLabel("Yes", { exact: true })).toBeChecked();
+  const strip = page.getByTestId("status-strip");
+  await expect(strip).toContainText(/You: playing .+ ✓/);
+  await strip.click();
+  const alice = playerRow(page, "Alice");
+  await expect(alice.getByTestId("attendance-editor")).toBeVisible();
+  await expect(alice).toContainText("Alice, will you be playing?");
+  await alice.getByLabel("Not sure", { exact: true }).click();
+  await expect(alice).toContainText("isn't sure");
+  await expect(alice.getByTestId("attendance-editor")).toHaveCount(0);
+  await expect(strip).toContainText(/You: not sure for .+ →/);
 
-  await card.getByLabel("Not sure", { exact: true }).click();
-  await expect(card.getByLabel("Not sure", { exact: true })).toBeChecked();
-  await expect(playerRow(page, "Alice")).toContainText("isn't sure");
-
-  // The single-game page asks about that specific game.
   await page.goto("/testcats/games/2");
-  await expect(page.getByTestId("personal-question")).toContainText(
-    "against Wombats",
-  );
+  await expect(page.getByTestId("status-strip")).toBeVisible();
 });
 
 test("the past-games toggle reveals past games and persists", async ({
@@ -87,12 +90,10 @@ test("the past-games toggle reveals past games and persists", async ({
 
   // The Marmots game is past the attendance lock: past-tense report with
   // no quota clause, "didn't respond" rows, and no attendance controls.
-  const marmots = page
-    .locator("section", { hasText: "Marmots" })
-    .filter({ has: page.getByTestId("player-row") });
-  await expect(marmots).toContainText(
-    "No players confirmed they were playing.",
-  );
+  const marmots = page.locator("section", { hasText: "Marmots" });
+  await expect(marmots).toContainText("0 confirmed attendance");
+  await marmots.getByRole("button").click();
+  await expect(marmots).toContainText("No players confirmed they were playing.");
   await expect(marmots.getByTestId("player-row").first()).toContainText(
     "didn't respond",
   );
@@ -115,7 +116,7 @@ test("adding a player puts them on the roster and every game", async ({
 
   await page.getByRole("link", { name: "Add new player" }).click();
   await page.getByLabel("Name").fill("Davina");
-  await page.getByLabel("Counts toward the women minimum").check();
+  await page.getByLabel(/Woman/).check();
   await page.getByRole("button", { name: "Save" }).click();
 
   await expect(page.locator("body")).toContainText("Player added");
@@ -126,7 +127,7 @@ test("adding a player puts them on the roster and every game", async ({
 
   await page.goto("/testcats");
   await expect(playerRow(page, "Davina")).toContainText(
-    "hasn't responded yet",
+    "hasn't responded",
   );
 });
 
@@ -153,15 +154,15 @@ test("adding a game shows it under manage games and the schedule", async ({
   );
 
   await page.goto("/testcats");
-  await expect(page.locator("body")).toContainText("against Ocelots");
-  await expect(page.locator("body")).toContainText("(the blue team)");
+  await expect(page.locator("body")).toContainText("Ocelots");
+  await expect(page.locator("body")).toContainText("the blue team");
 });
 
 test("removing a player is reversible: former players list, dead link, add back", async ({
   page,
 }) => {
   await page.goto("/testcats/players");
-  const carolRow = page.locator("li", { hasText: "Carol" });
+  const carolRow = page.getByRole("row").filter({ hasText: "Carol" });
 
   page.on("dialog", (dialog) => {
     expect(dialog.message()).toBe(
@@ -173,7 +174,7 @@ test("removing a player is reversible: former players list, dead link, add back"
   await carolRow.getByRole("button", { name: "Remove" }).click();
 
   await expect(
-    page.locator("li", { hasText: "Carol" }).getByRole("button", {
+    page.getByRole("row").filter({ hasText: "Carol" }).getByRole("button", {
       name: "Remove",
     }),
   ).toHaveCount(0);
@@ -195,13 +196,13 @@ test("removing a player is reversible: former players list, dead link, add back"
   await page.goto("/testcats/players");
   await page.getByRole("button", { name: "Show former players" }).click();
   await expect(page.locator("body")).toContainText("Former players");
-  const formerCarol = page.locator("li", { hasText: "Carol" });
-  await expect(formerCarol).toContainText("Left");
+  const formerCarol = page.getByRole("row").filter({ hasText: "Carol" });
+  await expect(formerCarol).toContainText(/Carol.+2026/);
   await formerCarol.getByRole("button", { name: "Add back" }).click();
 
   await expect(page.locator("body")).toContainText("No former players.");
   await expect(
-    page.locator("li", { hasText: "Carol" }).getByRole("button", {
+    page.getByRole("row").filter({ hasText: "Carol" }).getByRole("button", {
       name: "Remove",
     }),
   ).toBeVisible();
@@ -259,7 +260,7 @@ test("a captain can see, copy, regenerate, and revoke join links", async ({
   ).toBeVisible();
 
   // Desktop viewport (≥1024px): every link is visible in the table.
-  const bobRow = page.getByTestId("access-row").filter({ hasText: "Bob" });
+  const bobRow = page.getByRole("row").filter({ hasText: "Bob" });
   await expect(bobRow).toContainText("/join/e2e-bob-token");
 
   await bobRow.getByRole("button", { name: "Regenerate" }).click();

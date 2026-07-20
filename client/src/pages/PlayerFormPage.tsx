@@ -40,6 +40,9 @@ export function PlayerFormPage() {
   const [counts, setCounts] = useState<boolean | null>(null);
   const shownName = name ?? player?.name ?? "";
   const shownCounts = counts ?? player?.countsTowardMinimum ?? false;
+  const quotaNoun = team.quotaNounSingular.charAt(0).toUpperCase() + team.quotaNounSingular.slice(1);
+  const minimumWords = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+  const minimum = minimumWords[team.minQuotaPlayers] ?? String(team.minQuotaPlayers);
 
   const mutation = useMutation({
     mutationFn: (input: PlayerInput) =>
@@ -113,7 +116,10 @@ export function PlayerFormPage() {
           checked={shownCounts}
           onChange={(e) => setCounts(e.target.checked)}
         />
-        Counts toward the {team.quotaNounPlural} minimum
+        <span>
+          <strong>{quotaNoun}</strong>
+          <small>The league requires at least {minimum} on the field</small>
+        </span>
       </label>
 
       <div className={styles.actions}>
