@@ -887,6 +887,255 @@ slot is decided there. Facts already established for that session:
 | Docs | This section + `handoffs/design-overhaul.md`; REDESIGN.md banner | |
 | Roadmap slot | 5.75, before keyring | Fractional per the 5.5 precedent |
 
+## Design refinement (designed July 2026, build in milestone 5.8)
+
+A live visual review of milestone 5.75 found that its schedule had recovered
+most of the legacy PHP site's information density, but the management pages
+still repeated large action buttons on every row, attendance state remained
+too easy to miss, and several pieces of page chrome were heavier than the
+data they served. The legacy PHP site informed this review only as a source
+of ideas; it is not an implementation to preserve and imposes no
+compatibility constraints.
+
+**Governing principle:** data stays visible and actions stay quiet until the
+row that owns them is opened. The expandable-row language introduced on the
+schedule now applies consistently across the app.
+
+This milestone is primarily client design work, with one deliberate backend
+exception: durable tracking of whether the current join token has ever been
+redeemed. It does not reopen the deferred coed-rules model.
+
+### Schedule refinement
+
+- The page title becomes **“{Team} Schedule”** and the future section becomes
+  **“Upcoming games.”** The personal status control remains full-width on
+  mobile but shrinks to content width on desktop. It uses an unambiguous
+  abbreviated date (`Wed, Jul 22`, adding the year only outside the current
+  calendar year), and only its status phrase carries semantic color:
+  “You: **Playing** Wed, Jul 22 ✓”, “You: **No response** for Sat, Jul 25 →”.
+- Past games move below all upcoming games. Their disclosure always shows a
+  count (`Past games (0)`, `Past games (12)`) and retains the existing
+  per-team localStorage preference. Upcoming games sort nearest-first; past
+  games sort most-recent-first. A locked summary reads “Sun, Mar 7 vs Mad
+  Max — 5 players confirmed” (singular-aware, and “No players confirmed” at
+  zero). Each locked game still expands independently to its honest RSVP
+  record; a game inside the 24-hour grace window remains fully visible and
+  editable as in milestone 5.75.
+- Game-card spacing increases from 16px to 24px on mobile and 28px on
+  desktop. Sticky headings become predictable two-level headings: first
+  `Wed, Jul 22 · 2:06 pm`, then `vs Opponent`; opponent color is tertiary
+  muted text. Current-year dates omit the year, other years include it, and
+  long opponent names wrap without competing with date/time.
+- The tiny attendance dots and repeated desktop pencil/Edit affordances are
+  removed. The whole summary row remains the 44px-or-larger edit target at
+  every width, with one disclosure chevron, keyboard Enter/Space support,
+  focus treatment, and `aria-expanded`.
+- Status is carried by short, semantically colored words, with the wording
+  still sufficient without color. Upcoming: **Playing** (green), **Not
+  playing** (red), **Not sure** (orange), **No response** (muted gray).
+  Locked past: **Confirmed**, **Declined**, **Was unsure**, **No response**.
+  Names remain neutral and semibold. Mobile keeps name + status on one line:
+  the name ellipsizes first, the status never truncates, and only at an
+  exceptionally narrow width may status fall to a second line. Desktop uses
+  aligned name/status columns and avoids truncation where space permits.
+- Attendance becomes fully optimistic because it is a small, frequent,
+  reversible enum edit. On tap, the selected answer, colored phrase, roster
+  report, and personal chip all update immediately. A 500ms minimum
+  confirmation clock begins at the tap. The row collapses only when both
+  that clock and the successful response have completed — i.e. at
+  `max(tap + 500ms, server success)`. Failure rolls every optimistic surface
+  back, keeps the editor open, and shows a retryable inline error.
+- Schedule and management expansions use restrained spatial motion: about
+  160–180ms ease-out to open, a slightly faster ease-in to close, content
+  fade plus chevron rotation, no bounce, and no initial-load animation.
+  `prefers-reduced-motion` makes them instant.
+
+### Inline management model
+
+Players and Games no longer use permanent action buttons or dedicated form
+pages. The list/table itself is the complete workspace.
+
+- The entire collapsed summary row opens its inline form; no nested Edit
+  button. Only one row or Add draft is open per page. Clicking another row,
+  collapsing, opening Add, or navigating away from a **dirty** form replaces
+  its action area with an inline discard confirmation. Untouched forms close
+  freely; Cancel explicitly discards. Refresh/tab close uses the browser's
+  standard unsaved-changes warning.
+- Add is the final row inside the active list/table (`＋ Add player`, `＋ Add
+  game`), not a large external button. It expands to the same blank form.
+  The current React app's `/players/new`, `/players/:id/edit`, `/games/new`,
+  and `/games/:id/edit` routes and standalone form pages are removed; add and
+  edit expansion is local UI state. The shareable `/games/:gameId` route is
+  unrelated and stays.
+- Management mutations are deliberately not optimistic. The form remains
+  visible, relevant controls disable, and labels say Saving/Adding/Removing
+  while waiting. On success, `Saved ✓` or `Added ✓` remains for about 500ms,
+  then the row collapses and server-backed summaries update. Failure
+  preserves values and context with an inline, retryable error. There are no
+  modals, native confirm dialogs, toasts, or overflow menus.
+- A separated action footer spans the expanded form: text Cancel on the left
+  and one compact green Save/Add button on the right, both with 44px targets.
+  Validation and request errors sit immediately above it. Destructive text
+  appears below, not as Save's peer. Tapping it opens an inline confirmation
+  that names the record, explains consequences, preserves unsaved fields,
+  and disables Save until resolved.
+- Desktop retains real semantic tables; an expansion is a full-width row
+  beneath its summary. Mobile retains touch-oriented lists. Mobile fields
+  stack. Desktop Player forms put Name and Category side by side. Desktop
+  Game forms put Opponent and Color side by side with native
+  `datetime-local` full-width below. Form footers span all columns.
+
+**Players.** The title is simply **Players**. A collapsed row shows Player
+and Category: quota players use the title-cased configured singular noun
+(e.g. `Woman`); non-quota players temporarily show an em dash. This is a
+truthful bridge, not a final category model: `countsTowardMinimum: false`
+does not imply “Man.” Dominant-group nouns belong to the already-deferred
+coed-rules work and will replace the dash later. The complete name + quota
+form expands inline. Ordinary Remove remains available to everyone under the
+existing trust model and uses inline confirmation with the milestone 5.5
+history/add-back explanation.
+
+The captain-only disclosure always says `Former players (n)`. Former rows
+show name and departure date, then expand only to **Add back to roster** and
+**Delete permanently** — inactive details are not editable. Add back requires
+inline confirmation that the player's existing personal link immediately
+works again; success briefly says `Added back ✓` and moves the row to the
+active list. Permanent deletion moves here from active-player editing, is
+preceded by explicit irreversible confirmation, and retains all server
+protections: captain-only, refuses attendance history, and cannot remove the
+last active captain.
+
+**Games.** The title is simply **Games**. Mobile collapsed rows match the
+schedule's date-first identity. Desktop columns are **Date & time | Opponent
+| Color | disclosure**, with Bye week in the opponent column. The complete
+form expands inline. Delete uses inline confirmation and retains its current
+consequences. Past-management behavior and its persisted visibility remain;
+the visual treatment follows the same quiet row pattern.
+
+### Access refinement and current-token usage
+
+The title becomes **Access**. Mobile active rows use a stable two-level
+summary that leaves Copy directly available without opening the row:
+
+```text
+My Second Guy                    Copy  ›
+Never opened
+```
+
+Name/state occupy the flexible left column; Copy remains a labeled 44px
+target and does not toggle expansion. Desktop columns are **Player | Status |
+Copy | disclosure**. A successful copy says `Copied!` for about two seconds;
+failure says `Copy failed`, while expanding always exposes the selectable
+full URL.
+
+An expanded active row shows the full URL and a nested **Manage link**
+disclosure. Regenerate is neutral text and Revoke is red text; neither is a
+permanent button. Each uses an inline confirmation that names the player and
+explains link/session consequences. Successful regeneration leaves the row
+open, closes Manage link, highlights the new URL, says `New link generated
+✓`, and offers **Copy new link** without touching the clipboard
+unexpectedly. Successful revocation says `Access revoked ✓` for about 500ms,
+then collapses to `Revoked · opened` or `Revoked · never opened`; failure
+keeps confirmation and error open. Expanding a revoked row shows revocation
+date and the direct recovery action **Generate a new link** (not hidden under
+Manage link).
+
+To make “Never opened” truthful, add nullable
+`player.join_token_used_at timestamptz`. It means **the first successful
+redemption of the current token**, not recent app activity and not proof
+that someone acted on the captain's latest text. A valid active-token
+exchange sets it once (`COALESCE` semantics); subsequent exchanges preserve
+the first timestamp. Regeneration resets it to `NULL`; revocation preserves
+it. Existing rows receive no backfill. `PlayerAccess` gains a nullable ISO
+field (named `joinTokenUsedAt` unless implementation finds a clearer
+contract name), and the access query returns it. Marking usage must belong to
+the successful current-token exchange and must not accidentally mark a
+replacement token during a regeneration race.
+
+### Visual calibration
+
+- Keep the humanist system stack and tight tracking on actual headings only.
+  Reduce both weight saturation and size: roughly 25px/800 mobile and
+  29px/800 desktop page titles; 19–21px/800 section headings; 18–19px/700
+  game headings; 16px/600 names; 600 navigation/actions; 400 body/status;
+  700 report emphasis. Use available real system weights rather than
+  synthetic 750-style intermediates.
+- Light mode moves from the broad diagonal field toward a modern vertical
+  descendant of the legacy green atmosphere: softer at top, calmer below,
+  no repeating bands or dramatic stripe. `#b4dd96 → #86c264` is a browser-
+  tuning starting point, not a blind final value; update HTML/manifest theme
+  color to the chosen representative green. Dark mode's neutral cards over
+  deep green remain in their current direction.
+- Preserve card shape, restrained shadows, hairline dividers, single-column
+  schedule, desktop sidebar, and fixed opaque mobile bottom navigation.
+  Existing safe-area and bottom padding stay. WCAG contrast and 44px targets
+  remain floors.
+
+### Testing and acceptance
+
+This milestone changes interaction structure and one auth fact, so tests are
+part of the spec rather than post-hoc selector repair.
+
+- **Server integration:** new/current token starts null; first successful
+  active redemption sets usage; repeated redemption preserves the first
+  value; regeneration resets it; revocation preserves it; invalid, revoked,
+  and departed links do not mark usage; access response returns the field.
+  Exercise the current-token race safety if it is isolated in a testable
+  data operation.
+- **Playwright:** inline player edit + create; one-open-at-a-time; dirty
+  discard on row switch/navigation; inline remove confirmation; former
+  add-back and guarded permanent deletion; inline game edit + create +
+  delete; no obsolete form-route navigation; direct Access Copy feedback;
+  Never opened → Opened after a real join redemption; regeneration reset/new
+  URL flow; revocation success state. Preserve existing auth/wall, lock,
+  localStorage, and PWA flows.
+- **Optimistic attendance e2e:** delay the PUT response and assert button,
+  phrase, report, and personal chip update before it resolves; assert the row
+  cannot collapse before both 500ms and success; force a failure and assert
+  complete rollback plus open retry state. Avoid brittle exact-timer tests:
+  prove the lower bound and eventual state with generous margins.
+- Cover past disclosure count/order/wording and locked expansion. Exercise at
+  least one mobile list and desktop table flow, keyboard expansion, and
+  reduced-motion rendering. Visual details are reviewed at phone, tablet,
+  wide desktop, and dark mode; do not introduce screenshot snapshots unless
+  they prove stable enough to maintain.
+- **Unit tests:** do not create a client unit-test harness merely to test CSS
+  or React wiring. Add focused unit tests only if implementation extracts a
+  genuinely branchy pure helper (for example compact current-year date
+  formatting or optimistic cache transformation). Existing report/date
+  units remain green. Run `pnpm test`, typecheck, production build, and the
+  full Playwright suite.
+
+### Decision log (design-refinement interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Governing interaction | Dense rows; actions appear on expansion | Extends the schedule's successful edit-on-demand model |
+| Player/game editing | Complete inline form, one open | No modal or intermediate Edit link |
+| Creation | Final Add row expands inline at every width | Same model as editing |
+| Form routes | Remove dedicated new/edit routes | No users/links require compatibility; single presentation |
+| Dirty drafts | One draft; inline discard confirmation | No hidden multi-row drafts |
+| Save behavior | Wait for server; 500ms success beat, collapse | Management is not optimistic |
+| Destructive behavior | Restrained text + inline confirmation | No native dialogs, menus, or modal |
+| Player summary | Name + configured quota noun / temporary dash | Dominant noun remains deferred |
+| Permanent player deletion | Former players only | Captain-only; history/last-captain guards remain |
+| Add back | Inline confirmation | Explicitly warns existing link revives |
+| Game summary | Date/time first everywhere | Desktop table splits date/opponent/color |
+| Attendance marker | Colored short phrase; no dot | Color is redundant with words |
+| Attendance rendering | Fully optimistic with rollback | Collapse at max(tap + 500ms, server success) |
+| Game heading | Short date/time first; opponent second | Current year omitted; long names wrap independently |
+| Past placement/order | Below upcoming; newest past first | Count always visible; preference persists |
+| Past summary | “5 players confirmed” | Honest RSVP wording, singular-aware |
+| Status chip | Full mobile/content-width desktop; short date | Status phrase alone carries color |
+| Access routine action | Copy in collapsed row | `Copied!` feedback; full URL on expansion |
+| Token usage | Current token ever opened | Durable first-use timestamp, reset on regenerate, no backfill |
+| Access rare actions | Nested Manage link | Revoked recovery remains direct |
+| Typography | Smaller calibrated 800/700/600/400 hierarchy | Avoid synthetic intermediate weights |
+| Light page | Softer vertical legacy-descended green | Legacy is inspiration only; no repeating bands |
+| Motion | 160–180ms height/fade + chevron | Instant under reduced motion |
+| Mobile nav | Keep fixed opaque bar | Existing safe-area/content clearance stays |
+| Roadmap/docs | Milestone 5.8 + handoff | Before keyring milestone 6 |
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -983,6 +1232,20 @@ once, in the new language. The **coed-rules cluster** (rule
 storage/calculation/display) was split out as backend-logic work — see the
 deferred subsection; its roadmap slot is decided after a second grill
 session, post-5.75.
+
+**5.8 — Design refinement** — designed July 2026, not yet built. A live
+mobile/desktop/dark-mode critique of 5.75 kept its scoreboard architecture
+but made actions quieter: short colored attendance phrases, compact game
+identity, more card separation, and fully inline row editing/creation on
+Players and Games. Access becomes copy-first and gains durable current-token
+“Opened” state via one small migration/API addition. Dedicated player/game
+form routes disappear; management keeps semantic desktop tables and mobile
+lists. Full behavior, visual calibration, test requirements, and decision
+log are in
+[its own section](#design-refinement-designed-july-2026-build-in-milestone-58),
+with implementation guidance in `handoffs/design-refinement.md`. Slotted
+before keyring because it changes the Access surface and current session-
+token code that milestone 6 will subsequently restructure.
 
 6. **Multi-team keyring** — one browser holding several teams, designed in
    [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
