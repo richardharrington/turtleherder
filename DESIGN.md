@@ -464,6 +464,34 @@ and changed three things this section assumes. See
   is still two unrelated players with independent stints. It looks like
   tension; it isn't.
 
+**Amended by milestone 5.8 — read this too.** 5.8 also shipped before the
+keyring and touched the same file. See
+[Design refinement](#design-refinement-designed-july-2026-build-in-milestone-58).
+
+- **`access.ts`'s token-validation function changed shape and name.**
+  `findPlayerByJoinToken` (read-only) became `exchangeJoinToken`, which
+  validates the token *and* stamps `player.join_token_used_at` in one
+  UPDATE keyed on the token value — so a stale join racing a regeneration
+  can't mark the replacement token. `/join`'s call site in `app.ts` looks
+  slightly different, but the session-creation step right after it
+  (`createSession(found.playerId)`) is untouched. The keyring's planned
+  rewrite of that step — "add this key to the existing session, creating
+  one if there is none" — drops in after `exchangeJoinToken` exactly as it
+  would have after the old function: usage marking is atomic with token
+  validation, not with session creation, so it doesn't care how many
+  sessions or keys a browser ends up holding.
+- **`updateTokenAndKillSessions` (the shared regenerate/revoke helper) is
+  otherwise unchanged.** The 5.5 guidance above — `DELETE FROM
+  session_player WHERE player_id = $1`, never `session` — still applies
+  verbatim to its one call site.
+- **`PlayerAccess` and `getAccessList`'s query gained `join_token_used_at`.**
+  Any keyring-era rewrite of the access list or its SQL needs to carry that
+  column forward, not restore the pre-5.8 shape from memory.
+- **No conflict with "no person entity" here either.**
+  `join_token_used_at` is scoped to `player`, exactly like `join_token` and
+  `join_token_revoked_at` before it: a person holding keys on two teams
+  still has two independent usage stamps on two independent rows.
+
 ## Deploy (designed July 2026, build in milestone 5)
 
 Settled in a ninth design interview (July 2026). The service topology was
