@@ -1049,3 +1049,156 @@ describe("access management (captains only)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ---- Join-token usage (milestone 5.8) ----
+// "Never opened / Opened" on the access page is backed by
+// player.join_token_used_at: the first successful redemption of the
+// *current* token. A dedicated team so joins/regenerations here can't
+// disturb other fixtures. Tests in this block build on one another in order.
+describe("join-token usage", () => {
+  const UMA = "th_session=tok-uma-session"; // captain
+  let umaId = 0;
+  let vicId = 0;
+  let wesId = 0;
+
+  beforeAll(async () => {
+    const team = await pool.query<{ id: number }>(
+      `INSERT INTO team (name, slug, min_players, min_quota_players,
+                         quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Tokencats', 'tokencats', 7, 2, 'woman', 'women', 'America/New_York')
+       RETURNING id`,
+    );
+    const teamId = team.rows[0]!.id;
+    const players = await pool.query<{ id: number }>(
+      `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+       VALUES ($1, 'Uma', true, true, 'uma-token'),
+              ($1, 'Vic', false, false, 'vic-token'),
+              ($1, 'Wes', false, false, 'wes-token')
+       RETURNING id`,
+      [teamId],
+    );
+    [umaId, vicId, wesId] = players.rows.map((r) => r.id) as [
+      number,
+      number,
+      number,
+    ];
+    await pool.query(
+      `INSERT INTO roster_membership (player_id, joined_at)
+       VALUES ($1, '-infinity'), ($2, '-infinity'), ($3, '-infinity')`,
+      [umaId, vicId, wesId],
+    );
+    await pool.query(
+      `INSERT INTO session (id, player_id) VALUES ('tok-uma-session', $1)`,
+      [umaId],
+    );
+  });
+
+  async function accessFor(playerId: number): Promise<PlayerAccess> {
+    const res = await get("/api/teams/tokencats/access", UMA);
+    expect(res.status).toBe(200);
+    const row = ((await res.json()) as PlayerAccess[]).find(
+      (a) => a.playerId === playerId,
+    );
+    expect(row).toBeDefined();
+    return row!;
+  }
+
+  it("starts every never-redeemed token at null", async () => {
+    const res = await get("/api/teams/tokencats/access", UMA);
+    const access = (await res.json()) as PlayerAccess[];
+    expect(access).toHaveLength(3);
+    expect(access.every((a) => a.joinTokenUsedAt === null)).toBe(true);
+  });
+
+  it("sets usage on the first successful redemption and keeps it on repeats", async () => {
+    const join = await app.request("/join/vic-token");
+    expect(join.headers.get("location")).toBe("/tokencats");
+    const first = (await accessFor(vicId)).joinTokenUsedAt;
+    expect(first).not.toBeNull();
+
+    // A second redemption of the same link preserves the first timestamp.
+    const again = await app.request("/join/vic-token");
+    expect(again.headers.get("location")).toBe("/tokencats");
+    expect((await accessFor(vicId)).joinTokenUsedAt).toBe(first);
+  });
+
+  it("does not mark usage for an invalid token", async () => {
+    await app.request("/join/no-such-token");
+    expect((await accessFor(wesId)).joinTokenUsedAt).toBeNull();
+  });
+
+  it("does not mark usage for a revoked token, and revocation preserves prior usage", async () => {
+    // Wes never opened his link; revoking and then hitting it marks nothing.
+    await app.request(`/api/teams/tokencats/players/${wesId}/revoke-token`, {
+      method: "POST",
+      headers: { cookie: UMA },
+    });
+    const deadJoin = await app.request("/join/wes-token");
+    expect(deadJoin.headers.get("location")).toBe("/?join=invalid");
+    expect((await accessFor(wesId)).joinTokenUsedAt).toBeNull();
+
+    // Vic *had* opened his; revoking keeps that fact on the row.
+    const before = (await accessFor(vicId)).joinTokenUsedAt;
+    await app.request(`/api/teams/tokencats/players/${vicId}/revoke-token`, {
+      method: "POST",
+      headers: { cookie: UMA },
+    });
+    const vic = await accessFor(vicId);
+    expect(vic.joinToken).toBeNull();
+    expect(vic.joinTokenUsedAt).toBe(before);
+  });
+
+  it("resets usage on regeneration; the new link starts unopened", async () => {
+    const res = await app.request(
+      `/api/teams/tokencats/players/${vicId}/regenerate-token`,
+      { method: "POST", headers: { cookie: UMA } },
+    );
+    const access = (await res.json()) as PlayerAccess;
+    expect(access.joinTokenUsedAt).toBeNull();
+    expect((await accessFor(vicId)).joinTokenUsedAt).toBeNull();
+
+    // Opening the new link marks it fresh.
+    await app.request(`/join/${access.joinToken}`);
+    expect((await accessFor(vicId)).joinTokenUsedAt).not.toBeNull();
+  });
+
+  it("never marks a replacement token from a stale-token join (regeneration race)", async () => {
+    // The exchange validates and marks in one statement keyed on the token
+    // itself, so the observable contract is: a token that has been
+    // regenerated away redeems as invalid and leaves the new token unopened.
+    const res = await app.request(
+      `/api/teams/tokencats/players/${vicId}/regenerate-token`,
+      { method: "POST", headers: { cookie: UMA } },
+    );
+    const fresh = (await res.json()) as PlayerAccess;
+    expect(fresh.joinTokenUsedAt).toBeNull();
+
+    const staleJoin = await app.request("/join/vic-token");
+    expect(staleJoin.headers.get("location")).toBe("/?join=invalid");
+    expect(staleJoin.headers.get("set-cookie")).toBeNull();
+    expect((await accessFor(vicId)).joinTokenUsedAt).toBeNull();
+  });
+
+  it("does not mark usage for a departed player's token", async () => {
+    const removed = await app.request(
+      `/api/teams/tokencats/players/${wesId}`,
+      { method: "DELETE", headers: { cookie: UMA } },
+    );
+    expect(removed.status).toBe(204);
+    // Re-arm Wes's link so the departed (not revoked) path is exercised.
+    await pool.query(
+      `UPDATE player SET join_token_revoked_at = NULL WHERE id = $1`,
+      [wesId],
+    );
+
+    const join = await app.request("/join/wes-token");
+    expect(join.headers.get("location")).toBe(
+      "/?join=departed&team=Tokencats",
+    );
+    const { rows } = await pool.query<{ join_token_used_at: Date | null }>(
+      `SELECT join_token_used_at FROM player WHERE id = $1`,
+      [wesId],
+    );
+    expect(rows[0]!.join_token_used_at).toBeNull();
+  });
+});

@@ -123,6 +123,10 @@ export const playerAccessSchema = z.object({
   name: z.string(),
   joinToken: z.string().nullable(), // null = revoked
   revokedAt: z.iso.datetime({ offset: true }).nullable(),
+  // First successful redemption of the *current* token — not recent app
+  // activity. null = never opened. Reset by regeneration (it's a new link);
+  // preserved by revocation (the row reports what the dead link's state was).
+  joinTokenUsedAt: z.iso.datetime({ offset: true }).nullable(),
 });
 
 export type PlayerAccess = z.infer<typeof playerAccessSchema>;

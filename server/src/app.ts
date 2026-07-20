@@ -14,7 +14,7 @@ import {
   setSessionCookie,
 } from "./auth.js";
 import {
-  findPlayerByJoinToken,
+  exchangeJoinToken,
   getAccessList,
   regenerateToken,
   revokeToken,
@@ -74,7 +74,7 @@ export const app = new Hono<AuthEnv>()
 
   .get("/join/:token", async (c) => {
     await pruneExpiredSessions();
-    const found = await findPlayerByJoinToken(c.req.param("token"));
+    const found = await exchangeJoinToken(c.req.param("token"));
     if (!found) {
       // Same redirect for unknown and revoked tokens; leaks nothing.
       return c.redirect(INVALID_JOIN_REDIRECT);
