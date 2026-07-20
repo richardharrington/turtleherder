@@ -29,6 +29,7 @@ export function SegmentedControl({
           key={status}
           className={[
             styles.option,
+            styles[status],
             value === status ? styles.selected : "",
             disabled ? styles.disabled : "",
           ]

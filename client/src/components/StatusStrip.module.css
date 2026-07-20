@@ -1,0 +1,17 @@
+.strip {
+  width: 100%;
+  min-height: 44px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--page-green-dark) 65%, var(--surface));
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.strip:hover { background: var(--surface-dim); }
+.strip:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.strip strong { color: var(--link); }
