@@ -30,6 +30,17 @@ if (existsSync(clientDist)) {
 
 const port = Number(process.env.PORT ?? 3000);
 
-serve({ fetch: app.fetch, port }, (info) => {
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`turtleherder api listening on http://localhost:${info.port}`);
+});
+
+server.on("error", (err: NodeJS.ErrnoException) => {
+  if (err.code === "EADDRINUSE") {
+    console.error(
+      `\nPort ${port} is already in use — is another dev server already running?\n` +
+        `Set PORT=<other-port> to use a different one.\n`,
+    );
+    process.exit(1);
+  }
+  throw err;
 });
