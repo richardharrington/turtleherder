@@ -666,12 +666,13 @@ partial unique index catches the only realistic bug).
 
 ## Design overhaul (designed July 19 2026, build in milestone 5.75)
 
-Settled in an eighth design interview. Milestone 2's mobile-first design
-(`REDESIGN.md`) shipped in milestone 3 and **didn't work out UX-wise**: the
-schedule page leads with a giant personal-question card, then gives every
-player a ~150px three-button answer widget, so a full roster is several
+Settled in an eighth design interview and shipped in July 2026. Milestone
+2's mobile-first design (`REDESIGN.md`) shipped in milestone 3 and **didn't
+work out UX-wise**: the
+schedule page led with a giant personal-question card, then gave every
+player a ~150px three-button answer widget, so a full roster was several
 screens of buttons and the state of the game — who's in, who's out, are we
-at quorum — is nowhere. The legacy site, for all its 2010 clunk, was a
+at quorum — was nowhere. The legacy site, for all its 2010 clunk, was a
 *report* you could scan in two seconds. This overhaul restores the legacy
 information architecture with modern styling. Functionality, backend, PWA
 shell, and routes are all kept; `REDESIGN.md`'s visual and interaction
@@ -771,14 +772,66 @@ is edit-on-demand, not the page's default posture.
   women minimum". (On a hypothetical max-men team the same pattern reads
   "Man — the league allows at most five on the field at once".)
 
+### Design-overhaul implementation notes (milestone 5.75, built July 2026)
+
+The overhaul shipped as client-only work; `server/` and `shared/` were not
+changed. Build-time choices and learnings:
+
+- **As-built palette:** light mode uses a `#a8d889 → #78b75a` page gradient,
+  white cards, and `#1d291a` ink. Status colors are `#24783a` yes,
+  `#b93632` no, `#9a5a00` not-sure, and `#687166` no-response. Dark mode
+  uses neutral `#1b201c` cards over a dark-green ambient page
+  (`#19391f → #102719`), with lighter green only as accent — no olive card
+  tint. Resting answer controls use separate semantic tints; selected
+  controls use solid status color. The manifest and HTML theme color moved
+  to the page green (`#78b75a`), while the existing PWA icon artwork stayed
+  unchanged.
+- **Fonts were removed rather than merely unused.** The Inter and
+  Merriweather imports, packages, and lockfile entries are gone. Both body
+  and headings use the settled humanist stack; headings are weight 800 with
+  `-0.025em` tracking.
+- **Sticky-heading mechanics:** each heading is `position: sticky; top: 0`
+  inside its own game card, so the card's containing block naturally ends
+  the pin. The old sticky past-games toggle had to become an ordinary
+  in-flow control: two unrelated elements competing for `top: 0` obscured
+  the game context, and the game heading is the one this design requires to
+  remain visible.
+- **Expansion state lives at page level**, keyed by `(gameId, playerId)`,
+  which makes the one-open-row invariant apply across every card rather
+  than merely within one game. The status strip sets that key and then
+  smooth-scrolls the resulting row to the center of the viewport. The same
+  mechanism is shared by the schedule and single-game pages.
+- **The confirmation beat starts after a successful write**, not on initial
+  tap. The chosen button remains solid while the mutation and query refresh
+  complete, then a 500ms timer collapses the row. A failed write leaves the
+  editor open and restores the server value, so an error cannot masquerade
+  as a successful auto-collapse. The timer only closes the row it belongs
+  to; it will not close a different row opened in the meantime.
+- **Only locked past games use the collapsed one-liner.** A game in the
+  milestone 5.5 24-hour grace window is already past-tense but remains fully
+  expanded and editable. This preserves the explicit purpose of that grace
+  period. Locked cards own their expanded/collapsed state locally and can be
+  collapsed again after inspection; a locked game on the single-game route
+  gets the same initial one-line treatment as it does on the schedule.
+- **Responsive table breakpoint is 1024px.** Players, former players, games,
+  and access use semantic `<table>` markup at desktop widths and retain the
+  touch-oriented list/reveal flow below it. The schedule remains a single
+  centered column capped at 720px beside the sidebar.
+- The obsolete giant personal-question component was deleted rather than
+  left as dead UI. Playwright coverage now checks strip jump-and-expand,
+  the one-row invariant, successful-answer collapse and status
+  refresh, and locked-past expansion. The full 13-test end-to-end suite,
+  unit/integration tests, typecheck, and production build passed after the
+  change.
+
 ### Deferred: the coed-rules cluster (grill part 2)
 
 How the quota/coed rule is **stored** (typed rule object vs bare columns),
 **calculated** (shorthanded model, min-to-start vs field size), and
 **displayed** (report grammar, percent-rule extensibility) was deliberately
-split out mid-interview — it's backend-touching logic work, not styling —
-to be grilled after 5.75 ships. Its roadmap slot is decided then. Facts
-already established for that session:
+split out mid-interview — it's backend-touching logic work, not styling.
+With 5.75 shipped, that second grill session is now unblocked; its roadmap
+slot is decided there. Facts already established for that session:
 
 - **Legacy analysis** (`legacy/bobcats/index.php:171-251`): two hardcoded
   minimums, `$min_players=7`, `$min_females=2`; `$females_needed`
@@ -914,21 +967,22 @@ one question it surfaced (captain-only removal) went to the Parking lot.
 Shipped as two commits — the stint work, then the independent attendance
 lock.
 
-**5.75 — Design overhaul** — designed July 19 2026 (eighth interview), not
-yet built. Milestone 3 shipped `REDESIGN.md`'s UX and it failed in use: the
-schedule page reads as a survey form (giant buttons, no scannable game
-state) where the legacy page was a two-second report. Restore the legacy
-information density with modern styling — dense dot-status rows,
-edit-on-demand expansion, report atop each card, a compact identity strip,
-green-page/white-card palette, humanist system fonts, system-following dark
-mode. Client-only (plus CSS/token work): no schema, API, or route changes.
-Designed in
+**5.75 — Design overhaul** — ✅ done (July 2026). Milestone 3 shipped
+`REDESIGN.md`'s UX and it failed in use: the schedule read as a survey form
+(giant buttons, no scannable game state) where the legacy page was a
+two-second report. The replacement restores that information density with
+dense dot-status rows, edit-on-demand expansion, report-first cards, a
+compact identity strip, green-page/white-card palette, humanist system
+fonts, and system-following dark mode. It remained strictly client-only:
+no schema, API, or route changes. Designed and documented, including
+as-built implementation decisions, in
 [its own section](#design-overhaul-designed-july-19-2026-build-in-milestone-575);
-implementation plan in `handoffs/design-overhaul.md`. Slotted before the
-keyring so milestone 6's switcher UI is built once, in the new language.
-The **coed-rules cluster** (rule storage/calculation/display) was split out
-of this interview as backend-logic work — see the deferred subsection; its
-roadmap slot is decided after a second grill session, post-5.75.
+the original implementation handoff remains in `handoffs/design-overhaul.md`.
+It shipped before the keyring so milestone 6's switcher UI will be built
+once, in the new language. The **coed-rules cluster** (rule
+storage/calculation/display) was split out as backend-logic work — see the
+deferred subsection; its roadmap slot is decided after a second grill
+session, post-5.75.
 
 6. **Multi-team keyring** — one browser holding several teams, designed in
    [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
@@ -967,9 +1021,10 @@ roadmap slot is decided after a second grill session, post-5.75.
 - **Coed rules model (grill part 2)** — deliberately unslotted (July 19
   2026). How the quota/coed rule is stored, calculated (shorthanded,
   min-to-start), and displayed; facts and void provisional choices recorded
-  in the design overhaul section's deferred subsection. Grill after 5.75
-  ships; pick the slot then (candidates: its own milestone before keyring's
-  build, or bundled with self-serve where its config UI lives).
+  in the design overhaul section's deferred subsection. Milestone 5.75 has
+  now shipped, so the grill is unblocked; pick the slot there (candidates:
+  its own milestone before keyring's build, or bundled with self-serve where
+  its config UI lives).
 - **Multi-team switching** — ✅ resolved (July 2026): promoted to milestone 6
   as the multi-team keyring, designed in
   [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6).
