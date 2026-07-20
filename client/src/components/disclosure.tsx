@@ -2,6 +2,7 @@ import {
   useEffect,
   useState,
   type KeyboardEvent,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 import { useBlocker } from "react-router";
@@ -89,6 +90,20 @@ export function useDisclosurePage(): DisclosurePage {
   };
 }
 
+// A click or keypress on an interactive element nested in the summary
+// (the access page's Copy button) belongs to that element, not the row.
+function fromInteractiveChild(event: {
+  target: EventTarget | null;
+  currentTarget: EventTarget | null;
+}): boolean {
+  const target = event.target;
+  return (
+    target instanceof HTMLElement &&
+    target !== event.currentTarget &&
+    target.closest("button, a, input, select, textarea") !== null
+  );
+}
+
 // Interaction contract for a collapsed summary: whole-row activation,
 // Enter/Space, aria-expanded. `role: "button"` suits a list-item summary;
 // table rows keep their row role (aria-expanded is valid there too).
@@ -101,8 +116,11 @@ export function summaryProps(
     ...(asButton ? { role: "button" as const } : {}),
     tabIndex: 0,
     "aria-expanded": open,
-    onClick: onToggle,
+    onClick: (event: MouseEvent) => {
+      if (!fromInteractiveChild(event)) onToggle();
+    },
     onKeyDown: (event: KeyboardEvent) => {
+      if (fromInteractiveChild(event)) return;
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         onToggle();

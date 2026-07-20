@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, request as pwRequest, test, type Page } from "@playwright/test";
 
 // Flows against the seeded Testcats team (see global-setup.ts):
 // players Alice (captain, counts toward minimum), Bob, Carol; a past
@@ -370,27 +370,91 @@ test("a walled-off team URL explains itself instead of silently forwarding", asy
   ).toBeVisible();
 });
 
-test("a captain can see, copy, regenerate, and revoke join links", async ({
-  page,
-}) => {
-  page.on("dialog", (dialog) => void dialog.accept());
+test.describe("access", () => {
+  test.use({ permissions: ["clipboard-read", "clipboard-write"] });
 
-  await page.goto("/testcats");
-  // The Access nav item is captain-only; Alice is the captain.
-  await page.getByRole("link", { name: "Access" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Access" }),
-  ).toBeVisible();
+  test("copy, token usage, regenerate, revoke, and recovery", async ({
+    page,
+    baseURL,
+  }) => {
+    await page.goto("/testcats");
+    // The Access nav item is captain-only; Alice is the captain.
+    await page.getByRole("link", { name: "Access" }).click();
+    await expect(page.getByRole("heading", { name: "Access" })).toBeVisible();
 
-  // Desktop viewport (≥1024px): every link is visible in the table.
-  const bobRow = page.getByRole("row").filter({ hasText: "Bob" });
-  await expect(bobRow).toContainText("/join/e2e-bob-token");
+    const carolRow = page.getByTestId("access-row").filter({ hasText: "Carol" });
+    await expect(carolRow).toContainText("Never opened");
 
-  await bobRow.getByRole("button", { name: "Regenerate" }).click();
-  await expect(bobRow).not.toContainText("/join/e2e-bob-token");
-  await expect(bobRow).toContainText("/join/");
+    // Copy lives in the collapsed summary, gives feedback, and never
+    // toggles the row.
+    await carolRow.getByRole("button", { name: "Copy", exact: true }).click();
+    await expect(carolRow.getByRole("button", { name: "Copied!" })).toBeVisible();
+    await expect(page.getByTestId("join-url")).toHaveCount(0);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+      "/join/e2e-carol-token",
+    );
 
-  await bobRow.getByRole("button", { name: "Revoke" }).click();
-  await expect(bobRow).toContainText("Link revoked");
-  await expect(bobRow).not.toContainText("/join/");
+    // A real join redemption (separate cookie jar — Alice stays signed
+    // in here) flips the durable state to Opened.
+    const joiner = await pwRequest.newContext({ baseURL });
+    await joiner.get("/join/e2e-carol-token");
+    await joiner.dispose();
+    await page.reload();
+    await expect(carolRow).not.toContainText("Never opened");
+    await expect(carolRow).toContainText("Opened");
+
+    // Expanding exposes the selectable full URL and the nested manage
+    // disclosure.
+    await carolRow.click();
+    await expect(page.getByTestId("join-url")).toContainText(
+      "/join/e2e-carol-token",
+    );
+
+    // Regenerate: confirmation names the player; success keeps the row
+    // open, highlights the new URL, and resets usage to Never opened.
+    await page.getByRole("button", { name: "Manage link" }).click();
+    await page.getByRole("button", { name: "Generate a new link…" }).click();
+    const regen = page.getByTestId("regenerate-confirm");
+    await expect(regen).toContainText("Generate a new link for Carol?");
+    await regen.getByRole("button", { name: "Generate new link" }).click();
+
+    const urlBox = page.getByTestId("join-url");
+    await expect(urlBox).toContainText("New link generated ✓");
+    await expect(urlBox).not.toContainText("e2e-carol-token");
+    await expect(
+      urlBox.getByRole("button", { name: "Copy new link" }),
+    ).toBeVisible();
+    await expect(carolRow).toContainText("Never opened");
+
+    // The regenerated-away link is dead.
+    const stale = await pwRequest.newContext({ baseURL });
+    const staleRes = await stale.get("/join/e2e-carol-token");
+    expect(staleRes.url()).toContain("/?join=invalid");
+    await stale.dispose();
+
+    // Revoke: success beat, then the collapsed row preserves usage state.
+    await page.getByRole("button", { name: "Manage link" }).click();
+    await page.getByRole("button", { name: "Revoke access…" }).click();
+    const revoke = page.getByTestId("revoke-confirm");
+    await expect(revoke).toContainText("Revoke Carol's access?");
+    await revoke.getByRole("button", { name: "Revoke", exact: true }).click();
+    await expect(revoke).toContainText("Access revoked ✓");
+    await expect(carolRow).toContainText("Revoked · never opened");
+    await expect(page.getByTestId("join-url")).toHaveCount(0);
+    await expect(
+      carolRow.getByRole("button", { name: "Copy", exact: true }),
+    ).toHaveCount(0);
+
+    // A revoked row expands to the revocation date and the direct
+    // recovery action — no Manage link detour.
+    await carolRow.click();
+    await expect(page.getByText(/Revoked \w+ \d+, \d{4}/)).toBeVisible();
+    await page.getByRole("button", { name: "Generate a new link…" }).click();
+    await page
+      .getByTestId("recover-confirm")
+      .getByRole("button", { name: "Generate new link" })
+      .click();
+    await expect(page.getByTestId("join-url")).toBeVisible();
+    await expect(carolRow).toContainText("Never opened");
+  });
 });
