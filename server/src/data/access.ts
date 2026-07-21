@@ -94,8 +94,9 @@ export async function getAccessList(teamId: number): Promise<PlayerAccess[]> {
   return rows.map(toPlayerAccess);
 }
 
-// Regenerate and revoke both kill the player's sessions in the same
-// transaction — cutting one person's access is the whole point of auth.
+// Regenerate and revoke both detach the player's key from every session in
+// the same transaction — cutting one person's access without disturbing the
+// other teams on those keyrings.
 
 export async function regenerateToken(
   teamId: number,
@@ -103,7 +104,7 @@ export async function regenerateToken(
 ): Promise<PlayerAccess | null> {
   // A regenerated token is a brand-new link nobody has opened, so its
   // first-use stamp resets with it.
-  return updateTokenAndKillSessions(
+  return updateTokenAndDetachKeys(
     teamId,
     playerId,
     `UPDATE player SET join_token = $3, join_token_revoked_at = NULL,
@@ -121,7 +122,7 @@ export async function revokeToken(
   // COALESCE keeps the original revocation time on a repeat revoke.
   // join_token_used_at is deliberately untouched: a revoked row still
   // reports whether the link was ever opened.
-  return updateTokenAndKillSessions(
+  return updateTokenAndDetachKeys(
     teamId,
     playerId,
     `UPDATE player
@@ -131,7 +132,7 @@ export async function revokeToken(
   );
 }
 
-async function updateTokenAndKillSessions(
+async function updateTokenAndDetachKeys(
   teamId: number,
   playerId: number,
   updateSql: string,
@@ -150,11 +151,9 @@ async function updateTokenAndKillSessions(
       await client.query("ROLLBACK");
       return null;
     }
-    // Milestone 6 (keyring): when session.player_id becomes session_player,
-    // this must become "detach this player's key" (DELETE FROM
-    // session_player WHERE player_id = $1), NOT a delete of the sessions it
-    // appears in — see the keyring section's "Amended by milestone 5.5".
-    await client.query(`DELETE FROM session WHERE player_id = $1`, [playerId]);
+    await client.query(`DELETE FROM session_player WHERE player_id = $1`, [
+      playerId,
+    ]);
     await client.query("COMMIT");
     return toPlayerAccess(row);
   } catch (err) {

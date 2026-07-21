@@ -18,6 +18,7 @@ import type {
   Me,
   Player,
   PlayerAccess,
+  SessionTeam,
   Team,
 } from "@turtleherder/shared";
 import { runner } from "node-pg-migrate";
@@ -56,6 +57,23 @@ function jsonRequest(
     },
     body: JSON.stringify(body),
   });
+}
+
+async function insertSession(
+  id: string,
+  playerId: number,
+  timestamps?: { createdAt: Date; lastSeenAt: Date },
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO session (id, created_at, last_seen_at)
+     VALUES ($1, COALESCE($2, now()), COALESCE($3, now()))`,
+    [id, timestamps?.createdAt ?? null, timestamps?.lastSeenAt ?? null],
+  );
+  await pool.query(
+    `INSERT INTO session_player (session_id, player_id, team_id)
+     SELECT $1, p.id, p.team_id FROM player p WHERE p.id = $2`,
+    [id, playerId],
+  );
 }
 
 beforeAll(async () => {
@@ -129,11 +147,9 @@ beforeAll(async () => {
     [zedId],
   );
 
-  await pool.query(
-    `INSERT INTO session (id, player_id)
-     VALUES ('alice-session', $1), ('bob-session', $2), ('zed-session', $3)`,
-    [playerIds[0], playerIds[1], zedId],
-  );
+  await insertSession("alice-session", playerIds[0]!);
+  await insertSession("bob-session", playerIds[1]!);
+  await insertSession("zed-session", zedId);
 });
 
 afterAll(async () => {
@@ -224,12 +240,11 @@ describe("the wall", () => {
   });
 
   it("401s an expired session", async () => {
-    await pool.query(
-      `INSERT INTO session (id, player_id, created_at, last_seen_at)
-       VALUES ('expired-session', $1, now() - interval '400 days',
-               now() - interval '400 days')`,
-      [playerIds[0]],
-    );
+    const expiredAt = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
+    await insertSession("expired-session", playerIds[0]!, {
+      createdAt: expiredAt,
+      lastSeenAt: expiredAt,
+    });
     const res = await get("/api/teams/testcats", "th_session=expired-session");
     expect(res.status).toBe(401);
   });
@@ -261,12 +276,11 @@ describe("GET /join/:token", () => {
   });
 
   it("prunes expired sessions as a side effect", async () => {
-    await pool.query(
-      `INSERT INTO session (id, player_id, created_at, last_seen_at)
-       VALUES ('prune-me', $1, now() - interval '400 days',
-               now() - interval '400 days')`,
-      [playerIds[0]],
-    );
+    const expiredAt = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
+    await insertSession("prune-me", playerIds[0]!, {
+      createdAt: expiredAt,
+      lastSeenAt: expiredAt,
+    });
     await app.request("/join/no-such-token");
     const { rows } = await pool.query(
       `SELECT 1 FROM session WHERE id = 'prune-me'`,
@@ -277,11 +291,11 @@ describe("GET /join/:token", () => {
 
 describe("rolling session renewal", () => {
   it("touches the session and re-issues the cookie when the throttle has lapsed", async () => {
-    await pool.query(
-      `INSERT INTO session (id, player_id, last_seen_at)
-       VALUES ('stale-session', $1, now() - interval '2 hours')`,
-      [playerIds[0]],
-    );
+    const staleAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await insertSession("stale-session", playerIds[0]!, {
+      createdAt: staleAt,
+      lastSeenAt: staleAt,
+    });
     const res = await get("/api/teams/testcats", "th_session=stale-session");
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toContain("th_session=stale-session");
@@ -297,6 +311,175 @@ describe("rolling session renewal", () => {
     const res = await get("/api/teams/testcats"); // alice-session, seen just now
     expect(res.status).toBe(200);
     expect(res.headers.get("set-cookie")).toBeNull();
+  });
+});
+
+describe("multi-team keyring", () => {
+  const KEYRING = "th_session=keyring-session";
+  let alphaId = 0;
+  let alphaOtherId = 0;
+  let betaId = 0;
+
+  beforeAll(async () => {
+    const teams = await pool.query<{ id: number; slug: string }>(
+      `INSERT INTO team (name, slug, min_players, min_quota_players,
+                         quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Alpha Club', 'alpha-club', 1, 0, 'woman', 'women', 'UTC'),
+              ('Beta Club', 'beta-club', 1, 0, 'woman', 'women', 'UTC')
+       RETURNING id, slug`,
+    );
+    const alphaTeamId = teams.rows.find((row) => row.slug === "alpha-club")!.id;
+    const betaTeamId = teams.rows.find((row) => row.slug === "beta-club")!.id;
+    const players = await pool.query<{ id: number; join_token: string }>(
+      `INSERT INTO player
+         (team_id, name, counts_toward_minimum, is_captain, join_token)
+       VALUES ($1, 'Alpha Person', false, true, 'alpha-key-token'),
+              ($1, 'Alpha Alternate', false, false, 'alpha-alternate-token'),
+              ($2, 'Beta Person', false, true, 'beta-key-token')
+       RETURNING id, join_token`,
+      [alphaTeamId, betaTeamId],
+    );
+    alphaId = players.rows.find((row) => row.join_token === "alpha-key-token")!.id;
+    alphaOtherId = players.rows.find(
+      (row) => row.join_token === "alpha-alternate-token",
+    )!.id;
+    betaId = players.rows.find((row) => row.join_token === "beta-key-token")!.id;
+    await pool.query(
+      `INSERT INTO roster_membership (player_id, joined_at)
+       VALUES ($1, '-infinity'), ($2, '-infinity'), ($3, '-infinity')`,
+      [alphaId, alphaOtherId, betaId],
+    );
+    await insertSession("keyring-session", alphaId);
+  });
+
+  it("enforces one honest player key per team in the database", async () => {
+    await expect(
+      pool.query(
+        `INSERT INTO session_player (session_id, player_id, team_id)
+         SELECT 'keyring-session', p.id, p.team_id FROM player p WHERE p.id = $1`,
+        [alphaOtherId],
+      ),
+    ).rejects.toMatchObject({ code: "23505" });
+    await pool.query(`INSERT INTO session (id) VALUES ('constraint-session')`);
+    const alphaTeamId = (
+      await pool.query<{ team_id: number }>(
+        `SELECT team_id FROM player WHERE id = $1`,
+        [alphaId],
+      )
+    ).rows[0]!.team_id;
+    await expect(
+      pool.query(
+        `INSERT INTO session_player (session_id, player_id, team_id)
+         VALUES ('constraint-session', $1, $2)`,
+        [betaId, alphaTeamId],
+      ),
+    ).rejects.toMatchObject({ code: "23503" });
+  });
+
+  it("adds a second team's key to the existing session without replacing its cookie", async () => {
+    const joined = await app.request("/join/beta-key-token", {
+      headers: { cookie: KEYRING },
+    });
+    expect(joined.headers.get("location")).toBe("/beta-club");
+    expect(joined.headers.get("set-cookie")).toBeNull();
+
+    expect((await get("/api/teams/alpha-club", KEYRING)).status).toBe(200);
+    expect((await get("/api/teams/beta-club", KEYRING)).status).toBe(200);
+    const count = await pool.query<{ count: string }>(
+      `SELECT count(*) FROM session_player WHERE session_id = 'keyring-session'`,
+    );
+    expect(Number(count.rows[0]!.count)).toBe(2);
+  });
+
+  it("re-tapping a same-team link replaces only that team's key", async () => {
+    await app.request("/join/alpha-alternate-token", {
+      headers: { cookie: KEYRING },
+    });
+    const alphaMe = await get("/api/teams/alpha-club/me", KEYRING);
+    expect((await alphaMe.json()) as Me).toMatchObject({
+      playerId: alphaOtherId,
+      name: "Alpha Alternate",
+    });
+    const betaMe = await get("/api/teams/beta-club/me", KEYRING);
+    expect((await betaMe.json()) as Me).toMatchObject({
+      playerId: betaId,
+      name: "Beta Person",
+    });
+
+    // Restore the captain key for the revocation test below; Beta remains.
+    await app.request("/join/alpha-key-token", { headers: { cookie: KEYRING } });
+    expect((await get("/api/teams/beta-club", KEYRING)).status).toBe(200);
+  });
+
+  it("lists every team and player identity held by the keyring", async () => {
+    const res = await get("/api/session/teams", KEYRING);
+    expect(res.status).toBe(200);
+    expect((await res.json()) as SessionTeam[]).toEqual([
+      {
+        teamId: expect.any(Number),
+        slug: "alpha-club",
+        name: "Alpha Club",
+        playerId: alphaId,
+        playerName: "Alpha Person",
+      },
+      {
+        teamId: expect.any(Number),
+        slug: "beta-club",
+        name: "Beta Club",
+        playerId: betaId,
+        playerName: "Beta Person",
+      },
+    ]);
+  });
+
+  it("revocation detaches one key and leaves the other team live", async () => {
+    const revoked = await app.request(
+      `/api/teams/beta-club/players/${betaId}/revoke-token`,
+      { method: "POST", headers: { cookie: KEYRING } },
+    );
+    expect(revoked.status).toBe(200);
+    expect((await get("/api/teams/beta-club", KEYRING)).status).toBe(401);
+    expect((await get("/api/teams/alpha-club", KEYRING)).status).toBe(200);
+    expect((await get("/api/session/teams", KEYRING)).status).toBe(200);
+  });
+
+  it("treats a live session with zero keys like no session", async () => {
+    await pool.query(`INSERT INTO session (id) VALUES ('empty-keyring')`);
+    expect(
+      (await get("/api/teams/alpha-club", "th_session=empty-keyring")).status,
+    ).toBe(401);
+    const listed = await get(
+      "/api/session/teams",
+      "th_session=empty-keyring",
+    );
+    expect(await listed.json()).toEqual([]);
+  });
+
+  it("signs out the whole keyring and is idempotent for a dead session", async () => {
+    await insertSession("signout-keyring", alphaId);
+    await pool.query(
+      `INSERT INTO session_player (session_id, player_id, team_id)
+       SELECT 'signout-keyring', p.id, p.team_id FROM player p WHERE p.id = $1`,
+      [betaId],
+    );
+    const cookie = "th_session=signout-keyring";
+    const signedOut = await app.request("/api/session/sign-out", {
+      method: "POST",
+      headers: { cookie },
+    });
+    expect(signedOut.status).toBe(204);
+    expect(signedOut.headers.get("set-cookie")).toContain("th_session=");
+    expect(signedOut.headers.get("set-cookie")).toContain("Max-Age=0");
+    const gone = await pool.query(
+      `SELECT 1 FROM session WHERE id = 'signout-keyring'`,
+    );
+    expect(gone.rows).toHaveLength(0);
+
+    const again = await app.request("/api/session/sign-out", {
+      method: "POST",
+      headers: { cookie },
+    });
+    expect(again.status).toBe(204);
   });
 });
 
@@ -588,11 +771,15 @@ describe("roster history", () => {
        VALUES ($1, $2, 'yes'), ($1, $3, 'yes')`,
       [annId, pastGameId, futureGameId],
     );
+    await insertSession("hist-bea-session", beaId);
+    await insertSession("hist-cal-session", calId);
+    await insertSession("hist-ann-session", annId);
+    // Ann's browser also holds an unrelated Othercats key. Her departure
+    // must detach Histcats without deleting this whole keyring.
     await pool.query(
-      `INSERT INTO session (id, player_id)
-       VALUES ('hist-bea-session', $1), ('hist-cal-session', $2),
-              ('hist-ann-session', $3)`,
-      [beaId, calId, annId],
+      `INSERT INTO session_player (session_id, player_id, team_id)
+       SELECT 'hist-ann-session', p.id, p.team_id FROM player p WHERE p.id = $1`,
+      [zedId],
     );
   });
 
@@ -602,7 +789,7 @@ describe("roster history", () => {
     return (await res.json()) as GameWithAttendance;
   }
 
-  it("soft-removes a player: past roster and history survive, forward RSVPs pruned, sessions dead", async () => {
+  it("soft-removes a player: history survives, forward RSVPs are pruned, and only that key detaches", async () => {
     const removed = await app.request(`/api/teams/histcats/players/${annId}`, {
       method: "DELETE",
       headers: { cookie: BEA },
@@ -624,9 +811,25 @@ describe("roster history", () => {
     );
     expect(orphans.rows).toHaveLength(0);
 
-    // Her live session died with the stint.
+    // Her Histcats key is gone, but the same browser remains signed into the
+    // unrelated team on its keyring.
     const asAnn = await get("/api/teams/histcats", ANN);
     expect(asAnn.status).toBe(401);
+    expect((await get("/api/teams/othercats", ANN)).status).toBe(200);
+
+    // Even if a stale key somehow remains, the roster-stint clause is an
+    // independent guard and still blocks it.
+    await pool.query(
+      `INSERT INTO session_player (session_id, player_id, team_id)
+       SELECT 'hist-ann-session', p.id, p.team_id FROM player p WHERE p.id = $1`,
+      [annId],
+    );
+    expect((await get("/api/teams/histcats", ANN)).status).toBe(401);
+    await pool.query(
+      `DELETE FROM session_player
+       WHERE session_id = 'hist-ann-session' AND player_id = $1`,
+      [annId],
+    );
 
     // The player row itself survives — this was not a delete.
     const row = await pool.query(`SELECT 1 FROM player WHERE id = $1`, [annId]);
@@ -815,11 +1018,8 @@ describe("captain guards and purge", () => {
       [teamId],
     );
     playedGameId = game.rows[0]!.id;
-    await pool.query(
-      `INSERT INTO session (id, player_id)
-       VALUES ('cap-priya-session', $1), ('cap-quinn-session', $2)`,
-      [priyaId, quinnId],
-    );
+    await insertSession("cap-priya-session", priyaId);
+    await insertSession("cap-quinn-session", quinnId);
   });
 
   it("refuses to remove or purge the last active captain", async () => {
@@ -976,7 +1176,7 @@ describe("access management (captains only)", () => {
     expect(access.every((a) => a.revokedAt === null)).toBe(true);
   });
 
-  it("regenerates a token and kills the player's sessions", async () => {
+  it("regenerates a token and detaches the player's session keys", async () => {
     const res = await app.request(
       `/api/teams/testcats/players/${playerIds[1]}/regenerate-token`,
       { method: "POST", headers: { cookie: ALICE } },
@@ -998,7 +1198,7 @@ describe("access management (captains only)", () => {
     expect(asBob.status).toBe(401);
   });
 
-  it("revokes a token and kills the player's sessions", async () => {
+  it("revokes a token and detaches the player's session keys", async () => {
     const res = await app.request(
       `/api/teams/testcats/players/${playerIds[2]}/revoke-token`,
       { method: "POST", headers: { cookie: ALICE } },
@@ -1087,10 +1287,7 @@ describe("join-token usage", () => {
        VALUES ($1, '-infinity'), ($2, '-infinity'), ($3, '-infinity')`,
       [umaId, vicId, wesId],
     );
-    await pool.query(
-      `INSERT INTO session (id, player_id) VALUES ('tok-uma-session', $1)`,
-      [umaId],
-    );
+    await insertSession("tok-uma-session", umaId);
   });
 
   async function accessFor(playerId: number): Promise<PlayerAccess> {

@@ -1,5 +1,5 @@
 import type { Context, MiddlewareHandler } from "hono";
-import { getCookie, setCookie } from "hono/cookie";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { getSessionAuth, touchSession } from "./data/sessions.js";
 
 export const SESSION_COOKIE = "th_session";
@@ -32,6 +32,10 @@ export function setSessionCookie(c: Context, sessionId: string): void {
   });
 }
 
+export function clearSessionCookie(c: Context): void {
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+}
+
 // Walls every /api/teams/:slug/* endpoint. The session is checked before any
 // team lookup, and every failure — signed out, expired, wrong team,
 // nonexistent slug — gets the identical 401, so nothing leaks.
@@ -39,8 +43,11 @@ export const requireSession: MiddlewareHandler<AuthEnv> = async (c, next) => {
   if (c.get("auth")) return next(); // already authorized by an outer match
 
   const sessionId = getCookie(c, SESSION_COOKIE);
-  const auth = sessionId ? await getSessionAuth(sessionId) : null;
-  if (!auth || auth.teamSlug !== c.req.param("slug")) {
+  const teamSlug = c.req.param("slug");
+  const auth = sessionId && teamSlug
+    ? await getSessionAuth(sessionId, teamSlug)
+    : null;
+  if (!auth) {
     return c.json({ error: "unauthorized" }, 401);
   }
 

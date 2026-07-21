@@ -115,6 +115,19 @@ export const meSchema = z.object({
 
 export type Me = z.infer<typeof meSchema>;
 
+// One active team key held by the current browser session:
+// GET /api/session/teams. A player identity remains team-specific; rows here
+// make no claim that similarly named players on different teams are one human.
+export const sessionTeamSchema = z.object({
+  teamId: z.number().int(),
+  slug: z.string(),
+  name: z.string(),
+  playerId: z.number().int(),
+  playerName: z.string(),
+});
+
+export type SessionTeam = z.infer<typeof sessionTeamSchema>;
+
 // One row of the captains' manage-access page: GET /api/teams/:slug/access.
 // A revoked player keeps their row but the token is withheld until a captain
 // regenerates (POST …/players/:id/regenerate-token; revoke is …/revoke-token).

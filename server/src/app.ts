@@ -7,10 +7,13 @@ import {
   playerInputSchema,
 } from "@turtleherder/shared";
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import {
   type AuthEnv,
+  clearSessionCookie,
   requireCaptain,
   requireSession,
+  SESSION_COOKIE,
   setSessionCookie,
 } from "./auth.js";
 import {
@@ -36,7 +39,12 @@ import {
   removePlayer,
   updatePlayer,
 } from "./data/players.js";
-import { createSession, pruneExpiredSessions } from "./data/sessions.js";
+import {
+  createSession,
+  deleteSession,
+  getSessionTeams,
+  pruneExpiredSessions,
+} from "./data/sessions.js";
 import { getTeamById } from "./data/teams.js";
 
 function parseId(raw: string): number | null {
@@ -88,8 +96,26 @@ export const app = new Hono<AuthEnv>()
         `${DEPARTED_JOIN_REDIRECT}&team=${encodeURIComponent(found.teamName)}`,
       );
     }
-    setSessionCookie(c, await createSession(found.playerId));
+    const existingSessionId = getCookie(c, SESSION_COOKIE);
+    const sessionId = await createSession(found.playerId, existingSessionId);
+    // An existing live keyring keeps the same cookie; absent/dead sessions get
+    // a fresh one with this player as their first key.
+    if (sessionId !== existingSessionId) {
+      setSessionCookie(c, sessionId);
+    }
     return c.redirect(`/${found.teamSlug}`);
+  })
+
+  // ---- Current keyring (not team-scoped) ----
+
+  .get("/api/session/teams", async (c) =>
+    c.json(await getSessionTeams(getCookie(c, SESSION_COOKIE))),
+  )
+
+  .post("/api/session/sign-out", async (c) => {
+    await deleteSession(getCookie(c, SESSION_COOKIE));
+    clearSessionCookie(c);
+    return c.body(null, 204);
   })
 
   // ---- The wall ----

@@ -131,8 +131,9 @@ export type RemovePlayerResult = "removed" | "not_found" | "last_captain";
 // Removing a player is a soft close, not a delete: the open stint gets
 // left_at = now(), their attendance rows for games that stint no longer
 // covers (starts_at >= left_at — the exact complement of the roster
-// predicate) are pruned, and their sessions die. History for played games
-// is untouched, and "Add back" can reverse the whole thing.
+// predicate) are pruned, and their key is detached from every session.
+// History for played games is untouched, and "Add back" can reverse the
+// whole thing.
 export async function removePlayer(
   teamId: number,
   playerId: number,
@@ -171,13 +172,11 @@ export async function removePlayer(
          AND game_id IN (SELECT id FROM game WHERE starts_at >= $2)`,
       [playerId, closed.rows[0]!.left_at],
     );
-    // Departure cuts access: the soft close no longer deletes the player
-    // row, so the FK cascade that used to kill sessions doesn't happen.
-    // Milestone 6 (keyring): when session.player_id becomes session_player,
-    // this must become "detach this player's key" (DELETE FROM
-    // session_player WHERE player_id = $1), NOT a delete of the sessions it
-    // appears in — see the keyring section's "Amended by milestone 5.5".
-    await client.query(`DELETE FROM session WHERE player_id = $1`, [playerId]);
+    // Departure cuts only this player's access; other teams on the same
+    // browser keyring stay signed in.
+    await client.query(`DELETE FROM session_player WHERE player_id = $1`, [
+      playerId,
+    ]);
     await client.query("COMMIT");
     return "removed";
   } catch (err) {
@@ -275,8 +274,8 @@ export async function purgePlayer(
       await client.query("ROLLBACK");
       return "last_captain";
     }
-    // Stints and sessions cascade via their FKs; attendance is empty by the
-    // guard above.
+    // Stints and session keys cascade via their FKs; attendance is empty by
+    // the guard above.
     await client.query(`DELETE FROM player WHERE id = $2 AND team_id = $1`, [
       teamId,
       playerId,
