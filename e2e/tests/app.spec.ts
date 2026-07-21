@@ -449,9 +449,9 @@ test("visiting / while signed in forwards to the team", async ({ page }) => {
 test("a walled-off team URL explains itself instead of silently forwarding", async ({
   page,
 }) => {
-  // Alice's session is for Testcats only; the API 401s any other slug
+  // Alice's keyring currently has only Testcats; the API 401s any other slug
   // identically (real team or not). Instead of silently landing her on
-  // Testcats, the wall explains one-team-at-a-time and offers the link.
+  // Testcats, the wall explains the missing key and offers the held team.
   await page.goto("/testcats");
   await expect(
     page.getByRole("heading", { name: "Testcats Schedule" }),
@@ -463,7 +463,7 @@ test("a walled-off team URL explains itself instead of silently forwarding", asy
     "Ask your captain for your link.",
   );
   await expect(page.locator("body")).toContainText(
-    "You can only be signed into one team at a time.",
+    "You’re not signed into “otters” on this device.",
   );
   await expect(page.locator("body")).toContainText("“otters”");
 
@@ -499,7 +499,10 @@ test.describe("access", () => {
 
     // A real join redemption (separate cookie jar — Alice stays signed
     // in here) flips the durable state to Opened.
-    const joiner = await pwRequest.newContext({ baseURL });
+    const joiner = await pwRequest.newContext({
+      baseURL,
+      storageState: { cookies: [], origins: [] },
+    });
     await joiner.get("/join/e2e-carol-token");
     await joiner.dispose();
     await page.reload();
@@ -530,7 +533,10 @@ test.describe("access", () => {
     await expect(carolRow).toContainText("Never opened");
 
     // The regenerated-away link is dead.
-    const stale = await pwRequest.newContext({ baseURL });
+    const stale = await pwRequest.newContext({
+      baseURL,
+      storageState: { cookies: [], origins: [] },
+    });
     const staleRes = await stale.get("/join/e2e-carol-token");
     expect(staleRes.url()).toContain("/?join=invalid");
     await stale.dispose();
@@ -598,6 +604,9 @@ test.describe("mobile", () => {
     page,
   }) => {
     await page.goto("/testcats");
+    await expect(
+      page.getByRole("button", { name: "Testcats", exact: true }),
+    ).toBeVisible();
     const bob = playerRow(page, "Bob");
     // Name and status share one line; the whole row is the edit target.
     await expect(bob.getByTestId("player-status")).toHaveText("Playing");
@@ -613,4 +622,87 @@ test.describe("mobile", () => {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(page.getByLabel("Name")).toHaveCount(0);
   });
+});
+
+// Runs last because whole-keyring sign-out deliberately deletes the shared
+// fixture session. auth.spec.ts uses a fresh signed-out context afterward.
+test("a second-team join preserves both teams, enables switching and the chooser, and sign-out clears all", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/testcats");
+
+  // Even a single-team keyring exposes the consistent menu and Sign out.
+  await page.getByRole("button", { name: "Testcats", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: /Testcats Alice/ })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // Redeeming the second team's link adds a key to the existing cookie.
+  const cookieBefore = (await context.cookies()).find(
+    (cookie) => cookie.name === "th_session",
+  )!.value;
+  await page.goto("/join/e2e-bocce-alice-token");
+  await expect(
+    page.getByRole("heading", { name: "Bocce Buddies Schedule" }),
+  ).toBeVisible();
+  const cookieAfter = (await context.cookies()).find(
+    (cookie) => cookie.name === "th_session",
+  )!.value;
+  expect(cookieAfter).toBe(cookieBefore);
+
+  await page
+    .getByRole("button", { name: "Bocce Buddies", exact: true })
+    .click();
+  await expect(
+    page.getByRole("menuitem", { name: /Testcats Alice/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("menuitem", { name: /Bocce Buddies Alice Bocce/ }),
+  ).toBeVisible();
+  await page.getByRole("menuitem", { name: /Testcats Alice/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Testcats Schedule" }),
+  ).toBeVisible();
+
+  // A real but unjoined third team gets the generalized wall and one link
+  // for every team this keyring can actually open.
+  await page.goto("/otters");
+  await expect(page).toHaveURL("/?from=otters");
+  await expect(page.locator("body")).toContainText(
+    "You’re not signed into “otters” on this device.",
+  );
+  await expect(page.getByRole("link", { name: "Go to Testcats" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Go to Bocce Buddies" }),
+  ).toBeVisible();
+
+  // First multi-team root landing asks once; after the answer, ordinary team
+  // visits move the existing last-visited anchor.
+  await page.evaluate(() => localStorage.removeItem("keyringChooserSeen"));
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Choose a team" })).toBeVisible();
+  await page.getByRole("link", { name: /Bocce Buddies Alice Bocce/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Bocce Buddies Schedule" }),
+  ).toBeVisible();
+  await page.goto("/testcats");
+  await expect(
+    page.getByRole("heading", { name: "Testcats Schedule" }),
+  ).toBeVisible();
+  await page.goto("/");
+  await expect(page).toHaveURL("/testcats");
+
+  // Sign out deletes the session row, so neither team remains available.
+  await page.getByRole("button", { name: "Testcats", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Sign out" }).click();
+  await expect(page).toHaveURL("/");
+  await expect(page.locator("body")).toContainText(
+    "Ask your captain for your link.",
+  );
+  expect(
+    (await context.cookies()).find((cookie) => cookie.name === "th_session"),
+  ).toBeUndefined();
+  await page.goto("/bocce");
+  await expect(page).toHaveURL("/?from=bocce");
 });

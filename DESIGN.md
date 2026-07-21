@@ -9,7 +9,7 @@ backend's implementation details as that backend was built; a fifth settled
 the mobile-first redesign's visual and UX direction, recorded in the
 standalone [`REDESIGN.md`](REDESIGN.md) rather than here; a sixth settled
 the front-end push's implementation details as it was built; a seventh the
-[multi-team keyring](#multi-team-keyring-designed-july-2026-build-in-milestone-6)
+[multi-team keyring](#multi-team-keyring-designed-july-2026-built-july-2026)
 — how one browser holds several teams; an eighth (a short one) the CI
 workflow's open forks as it was built; a ninth the
 [deploy](#deploy-designed-july-2026-build-in-milestone-5) (July 2026
@@ -100,9 +100,15 @@ The two structural flaws of the original are fixed now, not later:
   stint closes, their rows for games the stint no longer covers are deleted
   in the same transaction. Both are explained in
   [Roster history](#roster-history-designed-july-2026-build-in-milestone-55).
-- **session** — `id` (random text, the cookie value), `player_id` FK,
-  `created_at`, `last_seen_at`. Added by the auth milestone; see
-  [Auth design](#auth-design).
+- **session** — `id` (random text, the cookie value), `created_at`,
+  `last_seen_at`. Added by the auth milestone, then changed to a multi-team
+  keyring in milestone 6: player identities now live in `session_player`.
+- **session_player** — `session_id`, `player_id`, and a constrained copy of
+  `player.team_id`. Unique on `(session_id, player_id)` and
+  `(session_id, team_id)`, so one browser keyring holds at most one identity
+  per team. Both foreign keys cascade; a composite player/team foreign key
+  prevents the denormalized team id from drifting. See
+  [Multi-team keyring](#multi-team-keyring-designed-july-2026-built-july-2026).
 
 ## Routes (client)
 
@@ -288,8 +294,9 @@ Implementation decisions, settled in a fourth interview:
 - **Revoked tokens keep their row:** revoke stamps
   `player.join_token_revoked_at` (repeat revokes keep the first stamp);
   `/join` and the access list treat a stamped token as dead. Regenerate
-  writes a fresh token and clears the stamp. Both kill the player's sessions
-  in the same transaction.
+  writes a fresh token and clears the stamp. Since milestone 6, both detach
+  the player's key from every session in the same transaction; other teams
+  on those keyrings survive.
 - **Endpoints:** `GET /join/:token` lives *outside* `/api` (it's a browser
   navigation): valid → session cookie + 302 to `/:teamSlug`; invalid/revoked
   → 302 to `/?join=invalid` (constant `INVALID_JOIN_REDIRECT` in `shared`),
@@ -338,7 +345,8 @@ and the PWA shell. Implementation decisions, settled in a sixth interview:
   breakpoint (its component section says ≥640px; its responsive section
   and decision log say ≥1024px) — resolved to **≥1024px** for the
   all-links-visible table, reveal-on-tap below. Regenerate and revoke
-  both confirm first, since both kill the player's sessions.
+  both confirm first; milestone 6 later narrowed their effect from deleting
+  sessions to detaching that player's key.
 - **Personal question card:** one deliberate deviation from REDESIGN.md —
   a 1px border was added, because the spec gives the card the same
   background as the page (`#f9fafb`) and "no borders", which together
@@ -354,7 +362,7 @@ and the PWA shell. Implementation decisions, settled in a sixth interview:
   (access page, regenerate, revoke) and the cross-team bounce ride along
   in `app.spec.ts` as Alice.
 
-## Multi-team keyring (designed July 2026, build in milestone 6)
+## Multi-team keyring (designed July 2026, built July 2026)
 
 Settled in a seventh design interview (July 2026). The original app's decade
 showed the need is real: people often play on two teams whose seasons
@@ -423,7 +431,8 @@ and changed three things this section assumes. See
 
 - **"Delete that player's sessions" must become "detach that player's key."**
   Two places run `DELETE FROM session WHERE player_id = $1`: the pre-existing
-  one in `updateTokenAndKillSessions` (`access.ts:104`, on regenerate/revoke)
+  one in `updateTokenAndKillSessions` (`access.ts:104`, on regenerate/revoke;
+  renamed `updateTokenAndDetachKeys` when milestone 6 shipped)
   and the one 5.5 adds to the stint-close path in `players.ts` — needed there
   because soft close no longer deletes the `player` row, so the FK cascade
   that used to cut access silently stops happening.
@@ -480,8 +489,9 @@ keyring and touched the same file. See
   would have after the old function: usage marking is atomic with token
   validation, not with session creation, so it doesn't care how many
   sessions or keys a browser ends up holding.
-- **`updateTokenAndKillSessions` (the shared regenerate/revoke helper) is
-  otherwise unchanged.** The 5.5 guidance above — `DELETE FROM
+- **`updateTokenAndKillSessions` (renamed `updateTokenAndDetachKeys` when
+  milestone 6 shipped; the shared regenerate/revoke helper) was otherwise
+  unchanged at 5.8.** The 5.5 guidance above — `DELETE FROM
   session_player WHERE player_id = $1`, never `session` — still applies
   verbatim to its one call site.
 - **`PlayerAccess` and `getAccessList`'s query gained `join_token_used_at`.**
@@ -491,6 +501,35 @@ keyring and touched the same file. See
   `join_token_used_at` is scoped to `player`, exactly like `join_token` and
   `join_token_revoked_at` before it: a person holding keys on two teams
   still has two independent usage stamps on two independent rows.
+
+### Multi-team keyring implementation notes (milestone 6, built July 2026)
+
+- **The database enforces one key per team.** `session_player` carries a
+  denormalized `team_id`, with `UNIQUE (session_id, team_id)` for the keyring
+  invariant and a composite FK to `player(id, team_id)` so the copy cannot
+  disagree with the player row. This was chosen over a locking trigger or an
+  application-only invariant. The same migration backfilled existing keys and
+  dropped `session.player_id`; unlike a normal live expand/contract rollout,
+  the direct contraction was acceptable because production had no non-test
+  users at build time.
+- **Session-wide API:** `GET /api/session/teams` returns active keys and
+  `POST /api/session/sign-out` idempotently deletes the session and clears the
+  cookie. Missing, expired, and zero-key sessions list as `[]`.
+- **Join is additive and transactional.** A live cookie keeps its session id;
+  an absent/dead cookie gets a new session. An upsert on the session/team
+  constraint replaces only a same-team key. Regenerate, revoke, and departure
+  delete `session_player` rows rather than sessions, preserving unrelated
+  teams on the browser keyring.
+- **The switcher is always available, including with one team.** This is the
+  build-time interpretation of the earlier “single-team users see no change”
+  line: a one-team menu has no switching complexity, but does expose the new
+  Sign out operation. Both desktop and mobile use the same anchored dropdown;
+  rows show team and player name.
+- **The one-time chooser is browser presentation state.** A dedicated
+  `keyringChooserSeen` localStorage flag sits beside `lastTeamSlug` and is
+  cleared on explicit sign-out. The first multi-team landing at `/` asks once;
+  thereafter the existing last-visited behavior resumes. The generalized wall
+  uses the slug-less session endpoint to offer one link per held team.
 
 ## Deploy (designed July 2026, build in milestone 5)
 
@@ -1351,12 +1390,14 @@ the original implementation handoff remains in
 the Access surface and current session-token code that milestone 6 will
 subsequently restructure.
 
-6. **Multi-team keyring** — one browser holding several teams, designed in
-   [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6):
-   the `session_player` join table, join-links-add-keys semantics, the
-   team-name switcher, sign-out, and the wall/PWA updates. Slotted before
-   self-serve so the keyring is in place before self-serve creation makes
-   second teams common.
+6. **Multi-team keyring** — ✅ done (July 2026). One browser now holds one
+   player key per team through `session_player`; join links add or replace one
+   key, revocation/departure detach only that key, and Sign out deletes the
+   whole browser keyring. The always-available team-name switcher, generalized
+   wall, and one-time multi-team PWA chooser are built as described in
+   [its own section](#multi-team-keyring-designed-july-2026-built-july-2026),
+   with build choices recorded in its implementation notes. Shipped before
+   self-serve so second-team creation can rely on it.
 7. **Self-serve teams** — a public create-team flow: team row, first captain,
    and that captain's join link issued entirely through the UI. Supersedes
    "seed/SQL only" for team *creation*; later captain changes may stay SQL
@@ -1422,7 +1463,7 @@ subsequently restructure.
   its config UI lives).
 - **Multi-team switching** — ✅ resolved (July 2026): promoted to milestone 6
   as the multi-team keyring, designed in
-  [its own section](#multi-team-keyring-designed-july-2026-build-in-milestone-6).
+  [its own section](#multi-team-keyring-designed-july-2026-built-july-2026).
   Stopped being hypothetical: the original app's users really did play on
   overlapping teams (bocce and soccer), and it's players, not just captains.
 

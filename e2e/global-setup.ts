@@ -1,6 +1,7 @@
-// Migrates the test database and seeds a deterministic fixture team
-// before every e2e run. With RESTART IDENTITY, ids are predictable:
-// players Alice=1 / Bob=2 / Carol=3, games past=1 / future=2.
+// Migrates the test database and seeds deterministic fixture teams before
+// every e2e run. Testcats has Alice=1 / Bob=2 / Carol=3 and games past=1 /
+// future=2. Bocce Buddies supplies Alice's second-team join link; Otters is
+// a real but unjoined third team for the uniform wall.
 //
 // The API is walled (see DESIGN.md's auth section), so this also creates a
 // session for Alice and writes it to a Playwright storageState file; every
@@ -64,7 +65,24 @@ export default async function globalSetup(): Promise<void> {
        VALUES (1, 2, 'yes'), (3, 1, 'yes')`,
     );
     await client.query(
-      `INSERT INTO session (id, player_id) VALUES ($1, 1)`,
+      `INSERT INTO team (name, slug, min_players, min_quota_players,
+                         quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Bocce Buddies', 'bocce', 4, 0, 'woman', 'women', 'America/New_York'),
+              ('Otters', 'otters', 7, 2, 'woman', 'women', 'America/New_York')`,
+    );
+    await client.query(
+      `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
+       VALUES (2, 'Alice Bocce', false, true, 'e2e-bocce-alice-token'),
+              (3, 'Olivia', true, true, 'e2e-otters-token')`,
+    );
+    await client.query(
+      `INSERT INTO roster_membership (player_id, joined_at)
+       VALUES (4, '-infinity'), (5, '-infinity')`,
+    );
+    await client.query(`INSERT INTO session (id) VALUES ($1)`, [SESSION_ID]);
+    await client.query(
+      `INSERT INTO session_player (session_id, player_id, team_id)
+       VALUES ($1, 1, 1)`,
       [SESSION_ID],
     );
   } finally {
