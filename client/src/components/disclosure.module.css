@@ -1,78 +1,174 @@
 /* The expandable-row language (milestone 5.8): animated disclosure,
-   inline form shell, and inline confirmations. Motion is ~170ms ease-out
-   open / slightly faster ease-in close, height + fade + chevron rotation,
-   no bounce; prefers-reduced-motion makes everything instant. */
-
+inline form shell, and inline confirmations. Motion is ~170ms ease-out
+open / slightly faster ease-in close, height + fade + chevron rotation,
+no bounce; prefers-reduced-motion makes everything instant. */
 .expander {
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows 150ms ease-in;
 }
-.expanderOpen { grid-template-rows: 1fr; transition: grid-template-rows 170ms ease-out; }
-.expanderInner { min-height: 0; overflow: hidden; opacity: 0; transition: opacity 130ms ease-in; }
-.expanderOpen .expanderInner { opacity: 1; transition: opacity 190ms ease-out; }
+.expanderOpen {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 170ms ease-out;
+}
+.expanderInner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 130ms ease-in;
+}
+.expanderOpen .expanderInner {
+  opacity: 1;
+  transition: opacity 190ms ease-out;
+}
+
 /* After the open transition, release the clip so sticky headings inside
-   can pin to the viewport. */
-.expanderSettled .expanderInner { overflow: visible; }
-
-.chevron { color: var(--text-secondary); flex: none; transition: transform 170ms ease-out; }
-.chevronOpen { transform: rotate(90deg); }
-
+can pin to the viewport. */
+.expanderSettled .expanderInner {
+  overflow: visible;
+}
+.chevron {
+  color: var(--text-secondary);
+  flex: none;
+  transition: transform 170ms ease-out;
+}
+.chevronOpen {
+  transform: rotate(90deg);
+}
 @media (prefers-reduced-motion: reduce) {
-  .expander, .expanderInner, .chevron { transition: none; }
+  .expander, .expanderInner, .chevron {
+    transition: none;
+  }
 }
 
 /* ---- Inline form shell ---- */
-
-.form { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 16px; background: var(--surface-dim); border-top: 1px solid var(--border); }
-.fields { display: grid; gap: 14px; }
-.formError { margin: 0; }
-
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 16px;
+  background: var(--surface-dim);
+  border-top: 1px solid var(--border);
+}
+.fields {
+  display: grid;
+  gap: 14px;
+}
+.formError {
+  margin: 0;
+}
 .footer {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; border-top: 1px solid var(--border); padding-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
-
 .cancelText, .dangerText, .neutralText {
-  border: 0; background: transparent; padding: 0 4px; min-height: 44px;
-  font: 600 15px/1.4 var(--font-body); cursor: pointer; text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  min-height: 44px;
+  font: 600 15px/1.4 var(--font-body);
+  cursor: pointer;
+  text-align: left;
 }
-.cancelText { color: var(--text-secondary); }
-.cancelText:disabled { opacity: .6; cursor: default; }
-.dangerText { color: var(--danger); }
-.dangerText:disabled, .neutralText:disabled { opacity: .6; cursor: default; }
-.neutralText { color: var(--link); }
+.cancelText {
+  color: var(--text-secondary);
+}
+.cancelText:disabled {
+  opacity: .6;
+  cursor: default;
+}
+.dangerText {
+  color: var(--danger);
+}
+.dangerText:disabled, .neutralText:disabled {
+  opacity: .6;
+  cursor: default;
+}
+.neutralText {
+  color: var(--link);
+}
 .cancelText:focus-visible, .dangerText:focus-visible, .neutralText:focus-visible {
-  outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px;
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Labeled fields inside the shell (mirrors the retired standalone forms). */
-.field { display: flex; flex-direction: column; gap: 8px; }
-.checkboxField {
-  display: flex; align-items: flex-start; gap: 12px;
-  font-weight: 400; font-size: 16px; min-height: 44px;
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.checkboxField > span { display: flex; flex-direction: column; }
-.checkboxField strong { font-weight: 700; }
-.checkboxField small { color: var(--text-secondary); font-size: 14px; }
+.checkboxField {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-weight: 400;
+  font-size: 16px;
+  min-height: 44px;
+}
+.checkboxField > span {
+  display: flex;
+  flex-direction: column;
+}
+.checkboxField strong {
+  font-weight: 700;
+}
+.checkboxField small {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
 
 /* ---- Discard confirmation (replaces the footer of a dirty draft) ---- */
-
 .discardBar {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end;
-  gap: 4px 16px; border-top: 1px solid var(--border); padding-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
-.discardPrompt { font-weight: 600; margin-right: auto; }
+.discardPrompt {
+  font-weight: 600;
+  margin-right: auto;
+}
 
 /* ---- Destructive zone + inline confirmations ---- */
-
 .destructiveZone {
-  border-top: 1px solid var(--border); padding-top: 4px;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
-
-.confirm { width: 100%; padding: 4px 0 8px; }
-.confirmPrompt { margin: 0 0 10px; font-weight: 600; }
-.confirmError { margin: 0 0 10px; }
-.confirmActions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; }
-.doneBeat { margin: 0; font-weight: 600; color: var(--status-yes); min-height: 44px; display: flex; align-items: center; }
+.confirm {
+  width: 100%;
+  padding: 4px 0 8px;
+}
+.confirmPrompt {
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+.confirmError {
+  margin: 0 0 10px;
+}
+.confirmActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+.doneBeat {
+  margin: 0;
+  font-weight: 600;
+  color: var(--status-yes);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}

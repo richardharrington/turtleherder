@@ -11,51 +11,43 @@
   cursor: pointer;
   text-decoration: none;
 }
-
 .button:disabled {
   opacity: 0.6;
   cursor: default;
 }
-
 .button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--focus);
 }
-
 .primary {
   background: var(--green);
   color: #ffffff;
 }
-
 .primary:not(:disabled):active {
   background: var(--green-dark);
 }
-
 .secondary {
   background: var(--surface-dim);
   color: var(--text);
   border-color: var(--border-input);
 }
-
 .secondary:not(:disabled):active {
   background: var(--border);
 }
-
 .danger {
   background: var(--danger);
   color: #ffffff;
 }
-
 .danger:not(:disabled):active {
   background: var(--error);
 }
-
 .small {
   font-size: 14px;
   padding: 4px 12px;
   min-height: 44px;
 }
-
 @media (prefers-color-scheme: dark) {
-  .primary { color: #111713; }
+  .primary {
+    color: #111713;
+  }
 }

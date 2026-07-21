@@ -1,69 +1,191 @@
 /* Players/Games management (milestone 5.8): dense quiet rows on a card,
-   whole-row disclosure, inline forms. Mobile is a touch list; ≥1024px is
-   a real table (rendered exclusively — see useIsDesktop). */
-
+whole-row disclosure, inline forms. Mobile is a touch list; ≥1024px is
+a real table (rendered exclusively — see useIsDesktop). */
 /* ---- Mobile list ---- */
-
-.list { list-style: none; margin: 0 0 24px; padding: 0; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: clip; }
-.row + .row { border-top: 1px solid var(--border); }
-.summary {
-  min-height: 44px; display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px 10px 16px; cursor: pointer;
+.list {
+  list-style: none;
+  margin: 0 0 24px;
+  padding: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: clip;
 }
-.summary:hover { background: var(--surface-dim); }
-.summary:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
-.name { font-weight: 600; font-size: 16px; }
-.note { margin-left: auto; color: var(--text-secondary); text-align: right; }
-.gameSummaryText { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.gameSummaryText .note { margin-left: 0; text-align: left; font-size: 14px; }
-.addSummary { color: var(--link); }
-.addSummary .name { color: inherit; flex: 1; }
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+.summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  cursor: pointer;
+}
+.summary:hover {
+  background: var(--surface-dim);
+}
+.summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+.name {
+  font-weight: 600;
+  font-size: 16px;
+}
+.note {
+  margin-left: auto;
+  color: var(--text-secondary);
+  text-align: right;
+}
+.gameSummaryText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+.gameSummaryText .note {
+  margin-left: 0;
+  text-align: left;
+  font-size: 14px;
+}
+.addSummary {
+  color: var(--link);
+}
+.addSummary .name {
+  color: inherit;
+  flex: 1;
+}
 
 /* ---- Desktop table ---- */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  overflow: clip;
+  margin-bottom: 24px;
+}
+.table th {
+  text-align: left;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  background: var(--surface-dim);
+}
+.table th, .table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.chevronHeader {
+  width: 40px;
+}
+.chevronCell {
+  width: 40px;
+  padding-block: 0;
+  text-align: right;
+  vertical-align: middle;
+}
+.summaryRow {
+  cursor: pointer;
+}
+.summaryRow:hover td {
+  background: var(--surface-dim);
+}
+.summaryRow:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
 
-.table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-card); overflow: clip; margin-bottom: 24px; }
-.table th { text-align: left; color: var(--text-secondary); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; background: var(--surface-dim); }
-.table th, .table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
-.table tbody tr:last-child td { border-bottom: 0; }
-.chevronHeader { width: 40px; }
-.chevronCell { width: 40px; padding-block: 0; text-align: right; vertical-align: middle; }
-.summaryRow { cursor: pointer; }
-.summaryRow:hover td { background: var(--surface-dim); }
-.summaryRow:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
 /* The divider between records lives on the (possibly zero-height)
-   expansion row, so it sits under the expansion when one is open. */
-.summaryRow td { height: 44px; border-bottom: 0; }
-.nameCell { font-weight: 600; }
-.noteCell { color: var(--text-secondary); }
-.addRow td { color: var(--link); font-weight: 600; }
-.expansionCell { padding: 0; }
+expansion row, so it sits under the expansion when one is open. */
+.summaryRow td {
+  height: 44px;
+  border-bottom: 0;
+}
+.nameCell {
+  font-weight: 600;
+}
+.noteCell {
+  color: var(--text-secondary);
+}
+.addRow td {
+  color: var(--link);
+  font-weight: 600;
+}
+.expansionCell {
+  padding: 0;
+}
 
 /* ---- Form field layouts ---- */
-
 /* Desktop: Name and Category side by side; Opponent and Color side by
-   side with the datetime input full-width below. Footers span. */
-.playerFields, .gameFields { display: grid; gap: 14px; }
+side with the datetime input full-width below. Footers span. */
+.playerFields, .gameFields {
+  display: grid;
+  gap: 14px;
+}
 @media (min-width: 1024px) {
-  .playerFields { grid-template-columns: 1fr 1fr; align-items: start; }
-  .gameFields { grid-template-columns: 1fr 1fr; }
-  .whenField { grid-column: 1 / -1; }
+  .playerFields {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+  .gameFields {
+    grid-template-columns: 1fr 1fr;
+  }
+  .whenField {
+    grid-column: 1 / -1;
+  }
 }
 
 /* ---- Sections ---- */
-
-.section { margin: 0 0 12px; }
-.subSection { margin-top: 28px; }
-.sectionDisclosure {
-  width: 100%; min-height: 44px; display: flex; align-items: center;
-  justify-content: space-between; gap: 8px; margin: 0 0 12px; padding: 10px 12px 10px 16px;
-  border: 0; border-radius: var(--radius); background: var(--surface);
-  box-shadow: var(--shadow-card); color: var(--text); font: 600 16px/1.4 var(--font-body);
-  text-align: left; cursor: pointer;
+.section {
+  margin: 0 0 12px;
 }
-.sectionDisclosure:hover { background: var(--surface-dim); }
-.sectionDisclosure:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.empty { color: var(--text-secondary); }
+.subSection {
+  margin-top: 28px;
+}
+.sectionDisclosure {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px 10px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+  color: var(--text);
+  font: 600 16px/1.4 var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.sectionDisclosure:hover {
+  background: var(--surface-dim);
+}
+.sectionDisclosure:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.empty {
+  color: var(--text-secondary);
+}
 
 /* ---- Former players expansion ---- */
-
-.formerActions { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 16px 14px; background: var(--surface-dim); border-top: 1px solid var(--border); }
+.formerActions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 16px 14px;
+  background: var(--surface-dim);
+  border-top: 1px solid var(--border);
+}

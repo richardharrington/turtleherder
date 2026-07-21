@@ -1,8 +1,8 @@
 :root {
   color-scheme: light dark;
   /* Light page: a modern vertical descendant of the legacy green —
-     softer at the top, calmer below, no repeating bands. Tuned in
-     browser screenshots from the #b4dd96 → #86c264 starting point. */
+  softer at the top, calmer below, no repeating bands. Tuned in
+  browser screenshots from the #b4dd96 → #86c264 starting point. */
   --page-green: #b4dd96;
   --page-green-dark: #86c264;
   --green: #287a3b;
@@ -30,9 +30,13 @@
   --font-body: Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", sans-serif;
   --font-heading: Seravek, "Gill Sans Nova", Ubuntu, Calibri, "DejaVu Sans", sans-serif;
 }
-
-*, *::before, *::after { box-sizing: border-box; }
-html { min-height: 100%; background: var(--page-green-dark); }
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+html {
+  min-height: 100%;
+  background: var(--page-green-dark);
+}
 body {
   min-height: 100vh;
   margin: 0;
@@ -40,9 +44,12 @@ body {
   color: var(--text);
   font: 400 16px/1.45 var(--font-body);
 }
-button, input { font-family: inherit; }
+button, input {
+  font-family: inherit;
+}
+
 /* Calibrated hierarchy (milestone 5.8): 800 for real headings only,
-   real system weights elsewhere — no synthetic intermediates. */
+real system weights elsewhere — no synthetic intermediates. */
 h1, h2 {
   font-family: var(--font-heading);
   font-weight: 800;
@@ -50,25 +57,63 @@ h1, h2 {
   line-height: 1.2;
   margin: 0 0 16px;
 }
-h3 { font-family: var(--font-heading); font-weight: 700; line-height: 1.2; margin: 0 0 16px; }
-h1 { font-size: 25px; }
-h2 { font-size: 19px; }
-h3 { font-size: 18px; }
-a { color: var(--link); }
-label { font-weight: 600; font-size: 14px; }
+h3 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 16px;
+}
+h1 {
+  font-size: 25px;
+}
+h2 {
+  font-size: 19px;
+}
+h3 {
+  font-size: 18px;
+}
+a {
+  color: var(--link);
+}
+label {
+  font-weight: 600;
+  font-size: 14px;
+}
 input[type="text"], input[type="datetime-local"] {
-  width: 100%; min-height: 44px; padding: 8px 12px;
-  font: inherit; color: inherit; background: var(--surface);
-  border: 1px solid var(--border-input); border-radius: var(--radius);
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
 }
 input[type="text"]:focus-visible, input[type="datetime-local"]:focus-visible {
-  outline: 3px solid var(--focus); outline-offset: 1px; border-color: transparent;
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+  border-color: transparent;
 }
-input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--green); }
-.error { color: var(--error); font-size: 14px; }
-
-@media (min-width: 640px) { h1 { font-size: 29px; } h2 { font-size: 21px; } h3 { font-size: 19px; } }
-
+input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--green);
+}
+.error {
+  color: var(--error);
+  font-size: 14px;
+}
+@media (min-width: 640px) {
+  h1 {
+    font-size: 29px;
+  }
+  h2 {
+    font-size: 21px;
+  }
+  h3 {
+    font-size: 19px;
+  }
+}
 @media (prefers-color-scheme: dark) {
   :root {
     --page-green: #19391f;

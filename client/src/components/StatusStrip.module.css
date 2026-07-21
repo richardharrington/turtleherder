@@ -12,15 +12,33 @@
   text-align: left;
   cursor: pointer;
 }
-.strip:hover { background: var(--surface-dim); }
-.strip:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.you { font-weight: 600; }
-.status_yes { color: var(--status-yes); }
-.status_no { color: var(--status-no); }
-.status_not_sure { color: var(--status-maybe); }
-.status_none { color: var(--status-none); }
+.strip:hover {
+  background: var(--surface-dim);
+}
+.strip:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.you {
+  font-weight: 600;
+}
+.status_yes {
+  color: var(--status-yes);
+}
+.status_no {
+  color: var(--status-no);
+}
+.status_not_sure {
+  color: var(--status-maybe);
+}
+.status_none {
+  color: var(--status-none);
+}
 
 /* Content width beside the sidebar; full width only on phones. */
 @media (min-width: 640px) {
-  .strip { width: fit-content; padding-inline: 14px 16px; }
+  .strip {
+    width: fit-content;
+    padding-inline: 14px 16px;
+  }
 }
