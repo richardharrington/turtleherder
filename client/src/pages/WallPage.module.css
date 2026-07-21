@@ -41,7 +41,11 @@
   font-size: 14px;
 }
 
-.goLink {
-  margin: 16px 0 0;
-  font-weight: 600;
-}
+.crossTeam { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+.crossTeam .note { margin: 0; padding: 0; border: 0; }
+.teamLinks { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; font-weight: 600; }
+.teamChoices { display: flex; flex-direction: column; gap: 8px; margin-top: 24px; text-align: left; }
+.teamChoice { min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-dim); color: var(--text); text-decoration: none; }
+.teamChoice:hover, .teamChoice:focus-visible { border-color: var(--link); }
+.teamChoice span { font-weight: 600; }
+.teamChoice small { color: var(--text-secondary); font-size: 12px; }

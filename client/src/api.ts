@@ -8,6 +8,7 @@ import type {
   Player,
   PlayerAccess,
   PlayerInput,
+  SessionTeam,
   Team,
 } from "@turtleherder/shared";
 
@@ -57,6 +58,15 @@ export async function fetchTeam(slug: string): Promise<Team> {
 
 export async function fetchMe(slug: string): Promise<Me> {
   return toJson(await fetch(`${teamUrl(slug)}/me`), "fetch me");
+}
+
+export async function fetchSessionTeams(): Promise<SessionTeam[]> {
+  return toJson(await fetch("/api/session/teams"), "fetch session teams");
+}
+
+export async function signOut(): Promise<void> {
+  const res = await fetch("/api/session/sign-out", { method: "POST" });
+  if (!res.ok) throw await apiError(res, "sign out");
 }
 
 export async function fetchGames(slug: string): Promise<GameWithAttendance[]> {

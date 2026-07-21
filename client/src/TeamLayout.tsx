@@ -1,9 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
-import type { Me, Team } from "@turtleherder/shared";
-import { CalendarDays, House, KeyRound, Users } from "lucide-react";
-import { useEffect } from "react";
-import { NavLink, Outlet, useLocation, useParams } from "react-router";
-import { fetchMe, fetchTeam } from "./api.js";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type { Me, SessionTeam, Team } from "@turtleherder/shared";
+import {
+  CalendarDays,
+  ChevronDown,
+  House,
+  KeyRound,
+  LogOut,
+  Users,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, Outlet, useLocation, useParams } from "react-router";
+import {
+  fetchMe,
+  fetchSessionTeams,
+  fetchTeam,
+  signOut,
+} from "./api.js";
 import styles from "./TeamLayout.module.css";
 
 // What every team page receives from the layout.
@@ -60,6 +72,96 @@ function NavItems({
   );
 }
 
+function TeamSwitcher({
+  currentTeam,
+  teams,
+  className,
+}: {
+  currentTeam: Team;
+  teams: SessionTeam[];
+  className: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const signOutMutation = useMutation({
+    mutationFn: signOut,
+    onSuccess: () => {
+      localStorage.removeItem("lastTeamSlug");
+      localStorage.removeItem("keyringChooserSeen");
+      window.location.assign("/");
+    },
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    function dismiss(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", dismiss);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  return (
+    <div className={`${styles.switcher} ${className}`} ref={rootRef}>
+      <button
+        type="button"
+        className={styles.switcherButton}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>{currentTeam.name}</span>
+        <ChevronDown
+          size={18}
+          aria-hidden
+          className={open ? styles.switcherChevronOpen : undefined}
+        />
+      </button>
+      {open && (
+        <div className={styles.switcherMenu} role="menu">
+          <p className={styles.switcherLabel}>Your teams</p>
+          {teams.map((team) => (
+            <Link
+              key={team.teamId}
+              to={`/${team.slug}`}
+              role="menuitem"
+              aria-current={team.slug === currentTeam.slug ? "page" : undefined}
+              className={`${styles.switcherTeam} ${
+                team.slug === currentTeam.slug ? styles.switcherCurrent : ""
+              }`}
+              onClick={() => setOpen(false)}
+            >
+              <span>{team.name}</span>
+              <small>{team.playerName}</small>
+            </Link>
+          ))}
+          <div className={styles.switcherDivider} />
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.signOut}
+            disabled={signOutMutation.isPending}
+            onClick={() => signOutMutation.mutate()}
+          >
+            <LogOut size={17} aria-hidden />
+            {signOutMutation.isPending ? "Signing out…" : "Sign out"}
+          </button>
+          {signOutMutation.isError && (
+            <p className={styles.switcherError}>Couldn’t sign out. Try again.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Shell shared by every team page: sidebar (tablet/desktop) or bottom
 // nav (mobile), the page heading, and the team/me context for pages.
 export function TeamLayout() {
@@ -75,9 +177,13 @@ export function TeamLayout() {
     queryFn: () => fetchMe(teamSlug!),
     enabled: teamSlug !== undefined,
   });
+  const sessionTeamsQuery = useQuery({
+    queryKey: ["sessionTeams"],
+    queryFn: fetchSessionTeams,
+  });
 
   // Lets the wall page forward a signed-in visitor (e.g. a PWA launch
-  // at "/") back to their team.
+  // at "/") back to the most recently visited team.
   const loadedSlug = teamQuery.isSuccess ? teamQuery.data.slug : null;
   useEffect(() => {
     if (loadedSlug !== null) {
@@ -96,17 +202,45 @@ export function TeamLayout() {
 
   const team = teamQuery.data;
   const me = meQuery.data;
+  const sessionTeams =
+    sessionTeamsQuery.data && sessionTeamsQuery.data.length > 0
+      ? sessionTeamsQuery.data
+      : [
+          {
+            teamId: team.id,
+            slug: team.slug,
+            name: team.name,
+            playerId: me.playerId,
+            playerName: me.name,
+          },
+        ];
 
   const relativePath = location.pathname.replace(`/${teamSlug}`, "");
-  const widePage = relativePath.startsWith("/players") || relativePath === "/games" || relativePath === "/access";
+  const widePage =
+    relativePath.startsWith("/players") ||
+    relativePath === "/games" ||
+    relativePath === "/access";
 
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
-        <div className={styles.teamName}>{team.name}</div>
+        <TeamSwitcher
+          currentTeam={team}
+          teams={sessionTeams}
+          className={styles.desktopSwitcher!}
+        />
         <NavItems team={team} me={me} itemClass={styles.sidebarItem!} />
       </aside>
-      <main className={`${styles.main} ${widePage ? styles.wideMain : styles.scheduleMain}`}>
+      <main
+        className={`${styles.main} ${
+          widePage ? styles.wideMain : styles.scheduleMain
+        }`}
+      >
+        <TeamSwitcher
+          currentTeam={team}
+          teams={sessionTeams}
+          className={styles.mobileSwitcher!}
+        />
         <h1>{pageTitle(location.pathname, teamSlug!, team.name)}</h1>
         <Outlet context={{ team, me } satisfies TeamOutletContext} />
       </main>

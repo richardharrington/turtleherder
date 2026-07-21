@@ -18,8 +18,8 @@ import "./main.css";
 // lives at "/" and never triggers this (its only fetch is guarded below).
 //
 // ?from= carries the slug the visitor was trying to reach (their own typed
-// URL, so nothing leaks): it tells the wall to explain itself instead of
-// auto-forwarding a one-team-at-a-time session to some *other* team.
+// URL, so nothing leaks): it tells the wall to explain the missing team key
+// instead of auto-forwarding to another team on the keyring.
 function onAuthError(error: unknown) {
   if (
     error instanceof ApiError &&
