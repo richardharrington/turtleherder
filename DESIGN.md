@@ -1592,7 +1592,9 @@ hierarchy would invent an ownership concept that exists nowhere else.
 **The settings page — coed rules plus team identity.** Reached from onboarding and
 for later edits, captains-only. It edits the coed block, the quota nouns, and —
 because a self-serve stranger has no SQL escape hatch for a typo'd name or wrong
-timezone — **`name` and `timezone`** too (slug excluded, immutable). Editing rules
+timezone — **`name` and `timezone`** too (slug excluded, immutable). The
+`name`/`timezone` half ships in milestone 7; the coed block + nouns half is
+milestone 7.1 (see the milestone split below). Editing rules
 on a live team needs no versioning or guard: future games re-report under the new
 rule; past games are immune, since `pastRosterReport` carries no quota clause
 (`report.ts:41`, the deliberate non-historization from 5.5). Editing `timezone`
@@ -1601,10 +1603,19 @@ instant never moves) — correct for future games, a low-stakes cosmetic shift o
 past-tense ones. Kept lean deliberately: this is not the "giant settings page" the
 permissions-config decision refused.
 
-**Commit seams.** Three coupled clusters, sliced by coupling per the standing
-preference: the public spine (combined `/` + create form + auto-sign-in +
-honeypot), config (settings page + onboarding + the nouns-nullable migration), and
-the permissions cluster (removal → captains-only + captain management).
+**Milestone split — 7 and 7.1.** The coed-rules entry form is carved into its
+own fractional milestone **7.1**, because translating the six-parameter engine
+into questions a captain understands (plus all its copy) needs its own /grill-me
+pass, and everything else in 7 is independent of it. Milestone **7** builds the
+public spine (combined `/` + create form + auto-sign-in + honeypot), the
+permissions cluster (removal → captains-only + captain management), the
+nouns-nullable migration, and the **settings-page shell with `name`/`timezone`
+editing** — the coed form slots into that same page later. Milestone **7.1** adds
+the coed-rules form, its skippable first-run onboarding framing, the
+create→onboarding handoff, and the copy. Those are the natural commit seams too,
+sliced by coupling per the standing preference. 7's create-form/onboarding
+boundary (e.g. whether `full_side`/`min_to_play` stay on signup) may shift when
+7.1 is grilled — rework it freely; it's a small seam and there are no users.
 
 **Deferred to the parking lot:** a captain-initiated **delete-team** — the
 self-serve counterpart to the abuse story and the "I made this by mistake"
@@ -1783,12 +1794,26 @@ slot. Full design in
    save their link — no email, no accounts, no PII beyond names. Pulls
    milestone 8's landing-page front door forward (tip jar stays in 8), so the
    bare `/` becomes a co-equal stranger/member page; adds a captains-only
-   settings page (the coed-rules config UI, plus `name`/`timezone`), reached
-   via a skippable first-run onboarding; a honeypot for abuse (rate-limit
-   deferred until the row count moves); and resolves the reopened permissions
-   question — player removal becomes captains-only, full peer captain
-   management lands in the UI, per-action config still deferred. Full design in
+   settings-page shell with `name`/`timezone` editing (the coed-rules config UI
+   itself is milestone 7.1); a honeypot for abuse (rate-limit deferred until the
+   row count moves); and resolves the reopened permissions question — player
+   removal becomes captains-only, full peer captain management lands in the UI,
+   per-action config still deferred. Full design in
    [Self-serve teams](#self-serve-teams-designed-july-2026-build-in-milestone-7).
+
+**7.1 — Coed-rules entry UI** — carved out of milestone 7 (July 2026); UI and
+copy still to be grilled. The captains-only form where a captain enters their
+league's coed rules — the six engine parameters (`full_side`, `min_to_play`,
+`men_ceiling`, `women_floor`, `floor_type`, `keeper_scoping`) plus quota nouns,
+translated into questions a captain understands — its skippable first-run
+onboarding framing, the create→onboarding handoff, and all copy. Split from 7
+because that translation is the hard, distinguishing part and needs its own
+/grill-me pass, while everything else in 7 is independent of it. The *fields*,
+*validation*, and *data behavior* are already settled in
+[Self-serve teams](#self-serve-teams-designed-july-2026-build-in-milestone-7);
+7.1 settles only presentation and wording. Fractional (not a renumber) because
+section anchors embed milestone numbers.
+
 8. **Tip jar** — the last polish sentence on the now-public landing page: a
    single tip-jar line and link (GitHub Sponsors or Ko-fi), per the goal
    section. The landing page itself (what-is-this copy + Create a team) moved

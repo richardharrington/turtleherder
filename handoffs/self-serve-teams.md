@@ -80,10 +80,11 @@ rest has no dependency on that grill and can proceed now in any order.
 - Captains-only settings page with **`name`** and **`timezone`** editing (slug
   excluded — immutable). The coed-rules form slots into this same page later.
 
-### 5. BLOCKED — the coed-rules form (after its grill)
+### Not in this handoff — milestone 7.1 (after its own grill)
 
-- The coed-rules form, its onboarding framing, and the create→onboarding
-  handoff. **This is the only grill-blocked piece.**
+- The coed-rules form, its skippable onboarding framing, and the
+  create→onboarding handoff are carved into **milestone 7.1** — their UI and
+  copy still need a /grill-me pass. Do not build them here.
 - Note: that grill may move the create-form/onboarding boundary — e.g. whether
   `full_side`/`min_to_play` stay on signup or move into the rules. **Rework
   that seam freely if so.** It is small, and there are no users; do not
