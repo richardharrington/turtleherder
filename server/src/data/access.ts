@@ -11,6 +11,7 @@ export function generateJoinToken(): string {
 interface AccessRow {
   id: number;
   name: string;
+  is_captain: boolean;
   join_token: string;
   join_token_revoked_at: Date | null;
   join_token_used_at: Date | null;
@@ -20,6 +21,7 @@ function toPlayerAccess(row: AccessRow): PlayerAccess {
   return {
     playerId: row.id,
     name: row.name,
+    isCaptain: row.is_captain,
     // A revoked token stays in the row (so revokedAt is reportable) but is
     // never handed out — it's dead until a captain regenerates.
     joinToken: row.join_token_revoked_at ? null : row.join_token,
@@ -82,7 +84,7 @@ export async function exchangeJoinToken(
 // on the manage-access page.
 export async function getAccessList(teamId: number): Promise<PlayerAccess[]> {
   const { rows } = await pool.query<AccessRow>(
-    `SELECT id, name, join_token, join_token_revoked_at, join_token_used_at
+    `SELECT id, name, is_captain, join_token, join_token_revoked_at, join_token_used_at
      FROM player p WHERE team_id = $1
        AND EXISTS (
          SELECT 1 FROM roster_membership m
@@ -110,7 +112,7 @@ export async function regenerateToken(
     `UPDATE player SET join_token = $3, join_token_revoked_at = NULL,
                        join_token_used_at = NULL
      WHERE id = $2 AND team_id = $1
-     RETURNING id, name, join_token, join_token_revoked_at, join_token_used_at`,
+     RETURNING id, name, is_captain, join_token, join_token_revoked_at, join_token_used_at`,
     [generateJoinToken()],
   );
 }
@@ -128,7 +130,7 @@ export async function revokeToken(
     `UPDATE player
      SET join_token_revoked_at = COALESCE(join_token_revoked_at, now())
      WHERE id = $2 AND team_id = $1
-     RETURNING id, name, join_token, join_token_revoked_at, join_token_used_at`,
+     RETURNING id, name, is_captain, join_token, join_token_revoked_at, join_token_used_at`,
   );
 }
 

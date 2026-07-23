@@ -50,9 +50,9 @@ rest has no dependency on that grill and can proceed now in any order.
 ### 2. Quota-nouns-nullable migration (schema only)
 
 - Make `quota_noun_singular` / `quota_noun_plural` nullable. Add a check tying
-  "nouns present" to "`women_floor` present," mirroring the existing
-  `(women_floor IS NULL) = (floor_type IS NULL)` constraint. `report.ts`
-  already reads the nouns only behind `hasGenderConstraint` — no report change.
+  "nouns present" to "at least one gender constraint (`women_floor` or
+  `men_ceiling`) is present." Ceiling-only rulesets need the nouns too because
+  `report.ts` reads them behind `hasGenderConstraint` — no report change.
 
 ### 3. Public spine
 

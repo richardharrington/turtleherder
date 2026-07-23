@@ -7,7 +7,7 @@
 // has to do exactly this much through a web form.
 
 import { parseArgs } from "node:util";
-import { z } from "zod";
+import { createTeamInputSchema } from "@turtleherder/shared";
 import { generateJoinToken } from "./data/access.js";
 import { pool } from "./db.js";
 
@@ -20,12 +20,13 @@ const USAGE = `Usage: pnpm db:create-team -- \\
   [--men-ceiling 5] \\
   [--floor-type play_down] \\
   [--keeper-scoping included] \\
-  --quota-noun-singular woman \\
-  --quota-noun-plural women \\
+  [--quota-noun-singular woman] \\
+  [--quota-noun-plural women] \\
   --timezone America/New_York \\
   --captain "Alison Bechdel"
 
 --floor-type defaults to play_down when --women-floor is set.
+Quota nouns are required with either gender constraint and omitted without both.
 --keeper-scoping defaults to included.
 Requires DATABASE_URL and APP_ORIGIN (e.g. https://turtleherder.com).`;
 
@@ -33,73 +34,6 @@ function fail(message: string): never {
   console.error(message);
   process.exit(1);
 }
-
-// An IANA name the platform actually knows; catches "America/New York" and
-// other near-misses here rather than at render time on the team's schedule.
-function isKnownTimeZone(tz: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: tz });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const optionalInt = z.preprocess(
-  (value) => value ?? null,
-  z.coerce.number().int().min(0).nullable(),
-);
-
-const argsSchema = z
-  .object({
-    name: z.string().min(1),
-    slug: z
-      .string()
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be lowercase letters, digits, and single hyphens"),
-    fullSide: z.coerce.number().int().min(0),
-    minToPlay: z.coerce.number().int().min(0),
-    menCeiling: optionalInt,
-    womenFloor: optionalInt,
-    floorType: z.enum(["play_down", "forfeit"]).nullable(),
-    keeperScoping: z.enum(["included", "excluded"]),
-    quotaNounSingular: z.string().min(1),
-    quotaNounPlural: z.string().min(1),
-    timezone: z.string().refine(isKnownTimeZone, "must be an IANA name, e.g. America/New_York"),
-    captain: z.string().min(1),
-  })
-  .refine((a) => (a.womenFloor === null) === (a.floorType === null), {
-    error: "--floor-type must be set if and only if --women-floor is set",
-    path: ["floorType"],
-  })
-  // Fail fast on configs the engine can never realize: a side that can't reach
-  // its own forfeit line, or a gender knob larger than the slots it binds.
-  // Without these the mistake surfaces as a 500 at report-render time instead.
-  .refine((a) => a.minToPlay <= a.fullSide, {
-    error: "--min-to-play cannot exceed --full-side",
-    path: ["minToPlay"],
-  })
-  .refine(
-    (a) =>
-      a.womenFloor === null ||
-      a.womenFloor <=
-        a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
-    {
-      error:
-        "--women-floor cannot exceed the slots it binds (--full-side, minus the keeper when excluded)",
-      path: ["womenFloor"],
-    },
-  )
-  .refine(
-    (a) =>
-      a.menCeiling === null ||
-      a.menCeiling <=
-        a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
-    {
-      error:
-        "--men-ceiling cannot exceed the slots it binds (--full-side, minus the keeper when excluded)",
-      path: ["menCeiling"],
-    },
-  );
 
 function parseCliArgs() {
   // The root workspace script forwards its argument separator to tsx; strip
@@ -131,18 +65,18 @@ function parseCliArgs() {
 }
 const raw = parseCliArgs();
 
-const parsed = argsSchema.safeParse({
+const parsed = createTeamInputSchema.safeParse({
   name: raw.name,
   slug: raw.slug,
-  fullSide: raw["full-side"],
-  minToPlay: raw["min-to-play"],
-  menCeiling: raw["men-ceiling"],
-  womenFloor: raw["women-floor"],
+  fullSide: Number(raw["full-side"]),
+  minToPlay: Number(raw["min-to-play"]),
+  menCeiling: raw["men-ceiling"] === undefined ? null : Number(raw["men-ceiling"]),
+  womenFloor: raw["women-floor"] === undefined ? null : Number(raw["women-floor"]),
   floorType: raw["floor-type"] ??
     (raw["women-floor"] === undefined ? null : "play_down"),
   keeperScoping: raw["keeper-scoping"] ?? "included",
-  quotaNounSingular: raw["quota-noun-singular"],
-  quotaNounPlural: raw["quota-noun-plural"],
+  quotaNounSingular: raw["quota-noun-singular"] ?? null,
+  quotaNounPlural: raw["quota-noun-plural"] ?? null,
   timezone: raw.timezone,
   captain: raw.captain,
 });

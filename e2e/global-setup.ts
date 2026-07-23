@@ -69,7 +69,7 @@ export default async function globalSetup(): Promise<void> {
       `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
                          floor_type, quota_noun_singular, quota_noun_plural, timezone)
        VALUES ('Bocce Buddies', 'bocce', 4, 4, NULL, NULL,
-               'woman', 'women', 'America/New_York'),
+               NULL, NULL, 'America/New_York'),
               ('Otters', 'otters', 7, 7, 2, 'play_down',
                'woman', 'women', 'America/New_York')`,
     );

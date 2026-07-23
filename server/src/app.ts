@@ -1,10 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
 import {
   attendanceInputSchema,
+  createTeamInputSchema,
   DEPARTED_JOIN_REDIRECT,
   gameInputSchema,
   INVALID_JOIN_REDIRECT,
   playerInputSchema,
+  teamSettingsInputSchema,
 } from "@turtleherder/shared";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
@@ -33,8 +35,10 @@ import {
 import {
   addBackPlayer,
   createPlayer,
+  demotePlayer,
   getFormerPlayers,
   getPlayersForTeam,
+  promotePlayer,
   purgePlayer,
   removePlayer,
   updatePlayer,
@@ -45,7 +49,11 @@ import {
   getSessionTeams,
   pruneExpiredSessions,
 } from "./data/sessions.js";
-import { getTeamById } from "./data/teams.js";
+import {
+  createTeam,
+  getTeamById,
+  updateTeamSettings,
+} from "./data/teams.js";
 
 function parseId(raw: string): number | null {
   return /^\d+$/.test(raw) ? Number(raw) : null;
@@ -118,6 +126,40 @@ export const app = new Hono<AuthEnv>()
     return c.body(null, 204);
   })
 
+  // ---- Public team creation ----
+
+  .post(
+    "/api/teams",
+    zValidator("json", createTeamInputSchema),
+    async (c) => {
+      const input = c.req.valid("json");
+      // Silently discard honeypot submissions. A normal browser leaves this
+      // visually hidden field empty; no team row is created.
+      if (input.website !== "") return c.body(null, 204);
+      try {
+        const created = await createTeam(
+          input,
+          getCookie(c, SESSION_COOKIE),
+        );
+        setSessionCookie(c, created.sessionId);
+        const requestOrigin = new URL(c.req.url).origin;
+        const origin = canonicalOrigin ?? requestOrigin;
+        return c.json(
+          {
+            slug: created.team.slug,
+            captainJoinUrl: `${origin}/join/${created.captainJoinToken}`,
+          },
+          201,
+        );
+      } catch (err) {
+        if ((err as { code?: string }).code === "23505") {
+          return c.json({ error: "slug taken" }, 409);
+        }
+        throw err;
+      }
+    },
+  )
+
   // ---- The wall ----
   // Both patterns are needed: `/:slug/*` alone doesn't match the bare
   // `/api/teams/:slug`. requireSession no-ops when both match.
@@ -125,8 +167,11 @@ export const app = new Hono<AuthEnv>()
   .use("/api/teams/:slug", requireSession)
   .use("/api/teams/:slug/*", requireSession)
   .use("/api/teams/:slug/access", requireCaptain)
+  .use("/api/teams/:slug/settings", requireCaptain)
   .use("/api/teams/:slug/players/:playerId/regenerate-token", requireCaptain)
   .use("/api/teams/:slug/players/:playerId/revoke-token", requireCaptain)
+  .use("/api/teams/:slug/players/:playerId/promote", requireCaptain)
+  .use("/api/teams/:slug/players/:playerId/demote", requireCaptain)
   // The Former players section is access control in effect: "Add back"
   // re-arms a join link already sitting in the departed person's texts, and
   // purge destroys a row — so the whole surface is captains-only.
@@ -144,6 +189,18 @@ export const app = new Hono<AuthEnv>()
     const { playerId, playerName, isCaptain } = c.get("auth");
     return c.json({ playerId, name: playerName, isCaptain });
   })
+
+  .put(
+    "/api/teams/:slug/settings",
+    zValidator("json", teamSettingsInputSchema),
+    async (c) =>
+      c.json(
+        await updateTeamSettings(
+          c.get("auth").teamId,
+          c.req.valid("json"),
+        ),
+      ),
+  )
 
   // ---- Access management (captains only) ----
 
@@ -173,6 +230,33 @@ export const app = new Hono<AuthEnv>()
       return c.json({ error: "player not found" }, 404);
     }
     return c.json(access);
+  })
+
+  .post("/api/teams/:slug/players/:playerId/promote", async (c) => {
+    const playerId = parseId(c.req.param("playerId"));
+    const result =
+      playerId === null
+        ? "not_found"
+        : await promotePlayer(c.get("auth").teamId, playerId);
+    if (result === "not_found") {
+      return c.json({ error: "player not found" }, 404);
+    }
+    return c.body(null, 204);
+  })
+
+  .post("/api/teams/:slug/players/:playerId/demote", async (c) => {
+    const playerId = parseId(c.req.param("playerId"));
+    const result =
+      playerId === null
+        ? "not_found"
+        : await demotePlayer(c.get("auth").teamId, playerId);
+    if (result === "not_found") {
+      return c.json({ error: "player not found" }, 404);
+    }
+    if (result === "last_captain") {
+      return c.json({ error: "last captain" }, 409);
+    }
+    return c.body(null, 204);
   })
 
   // ---- Players ----
@@ -214,20 +298,24 @@ export const app = new Hono<AuthEnv>()
 
   // Removal is a soft close of the membership stint, not a delete; the
   // hard delete is the captains-only purge below.
-  .delete("/api/teams/:slug/players/:playerId", async (c) => {
-    const playerId = parseId(c.req.param("playerId"));
-    const result =
-      playerId === null
-        ? "not_found"
-        : await removePlayer(c.get("auth").teamId, playerId);
-    if (result === "not_found") {
-      return c.json({ error: "player not found" }, 404);
-    }
-    if (result === "last_captain") {
-      return c.json({ error: "last captain" }, 409);
-    }
-    return c.body(null, 204);
-  })
+  .delete(
+    "/api/teams/:slug/players/:playerId",
+    requireCaptain,
+    async (c) => {
+      const playerId = parseId(c.req.param("playerId"));
+      const result =
+        playerId === null
+          ? "not_found"
+          : await removePlayer(c.get("auth").teamId, playerId);
+      if (result === "not_found") {
+        return c.json({ error: "player not found" }, 404);
+      }
+      if (result === "last_captain") {
+        return c.json({ error: "last captain" }, 409);
+      }
+      return c.body(null, 204);
+    },
+  )
 
   .post("/api/teams/:slug/players/:playerId/add-back", async (c) => {
     const playerId = parseId(c.req.param("playerId"));

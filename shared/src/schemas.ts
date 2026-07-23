@@ -14,17 +14,148 @@ export const teamSchema = z
     floorType: z.enum(["play_down", "forfeit"]).nullable(),
     keeperScoping: z.enum(["included", "excluded"]),
     // The noun used by the roster report, e.g. "woman"/"women". Both forms
-    // are stored because plurals aren't derivable (woman -> women).
-    quotaNounSingular: z.string(),
-    quotaNounPlural: z.string(),
+    // are stored because plurals aren't derivable (woman -> women). A team
+    // without either gender constraint has neither noun.
+    quotaNounSingular: z.string().nullable(),
+    quotaNounPlural: z.string().nullable(),
     timezone: z.string(), // IANA name, e.g. "America/New_York"
   })
   .refine((team) => (team.womenFloor === null) === (team.floorType === null), {
     error: "floorType must be set if and only if womenFloor is set",
     path: ["floorType"],
-  });
+  })
+  .refine(
+    (team) =>
+      (team.quotaNounSingular === null) ===
+        (team.quotaNounPlural === null) &&
+      (team.womenFloor === null && team.menCeiling === null) ===
+        (team.quotaNounSingular === null),
+    {
+      error: "quota nouns must be set if and only if a gender constraint is set",
+      path: ["quotaNounSingular"],
+    },
+  );
 
 export type Team = z.infer<typeof teamSchema>;
+
+// ---- Team creation and settings ----
+
+export const RESERVED_TEAM_SLUGS = new Set([
+  "",
+  ".well-known",
+  "api",
+  "assets",
+  "create",
+  "health",
+  "join",
+]);
+
+export function slugifyTeamName(name: string): string {
+  return name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function isKnownTimeZone(timezone: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const nullableNonnegativeInt = z.number().int().min(0).nullable();
+
+// Shared verbatim by the operator CLI and the public create endpoint, so
+// neither path can admit a ruleset the other rejects. The public form sends
+// null/default values for the coed fields whose UI belongs to milestone 7.1.
+export const createTeamInputSchema = z
+  .object({
+    name: z.string().trim().min(1),
+    slug: z
+      .string()
+      .trim()
+      .regex(
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        "Use lowercase letters, numbers, and single hyphens.",
+      )
+      .refine((slug) => !RESERVED_TEAM_SLUGS.has(slug), "That URL is reserved."),
+    fullSide: z.number().int().min(0),
+    minToPlay: z.number().int().min(0),
+    menCeiling: nullableNonnegativeInt,
+    womenFloor: nullableNonnegativeInt,
+    floorType: z.enum(["play_down", "forfeit"]).nullable(),
+    keeperScoping: z.enum(["included", "excluded"]),
+    quotaNounSingular: z.string().trim().min(1).nullable(),
+    quotaNounPlural: z.string().trim().min(1).nullable(),
+    timezone: z
+      .string()
+      .trim()
+      .refine(isKnownTimeZone, "Use a valid IANA timezone."),
+    captain: z.string().trim().min(1),
+    // A real user never sees or fills this. The API silently discards a
+    // submission when it is non-empty.
+    website: z.string().max(500).optional().default(""),
+  })
+  .refine((a) => (a.womenFloor === null) === (a.floorType === null), {
+    error: "floorType must be set if and only if womenFloor is set",
+    path: ["floorType"],
+  })
+  .refine(
+    (a) =>
+      (a.quotaNounSingular === null) === (a.quotaNounPlural === null) &&
+      (a.womenFloor === null && a.menCeiling === null) ===
+        (a.quotaNounSingular === null),
+    {
+      error: "quota nouns must be set if and only if a gender constraint is set",
+      path: ["quotaNounSingular"],
+    },
+  )
+  .refine((a) => a.minToPlay <= a.fullSide, {
+    error: "Minimum to play cannot exceed full side.",
+    path: ["minToPlay"],
+  })
+  .refine(
+    (a) =>
+      a.womenFloor === null ||
+      a.womenFloor <= a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
+    {
+      error: "Women floor cannot exceed the slots it binds.",
+      path: ["womenFloor"],
+    },
+  )
+  .refine(
+    (a) =>
+      a.menCeiling === null ||
+      a.menCeiling <= a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
+    {
+      error: "Men ceiling cannot exceed the slots it binds.",
+      path: ["menCeiling"],
+    },
+  );
+
+export type CreateTeamInput = z.infer<typeof createTeamInputSchema>;
+
+export const createTeamResultSchema = z.object({
+  slug: z.string(),
+  captainJoinUrl: z.string(),
+});
+
+export type CreateTeamResult = z.infer<typeof createTeamResultSchema>;
+
+export const teamSettingsInputSchema = z.object({
+  name: z.string().trim().min(1),
+  timezone: z
+    .string()
+    .trim()
+    .refine(isKnownTimeZone, "Use a valid IANA timezone."),
+});
+
+export type TeamSettingsInput = z.infer<typeof teamSettingsInputSchema>;
 
 // ---- Player ----
 
@@ -143,6 +274,7 @@ export type SessionTeam = z.infer<typeof sessionTeamSchema>;
 export const playerAccessSchema = z.object({
   playerId: z.number().int(),
   name: z.string(),
+  isCaptain: z.boolean(),
   joinToken: z.string().nullable(), // null = revoked
   revokedAt: z.iso.datetime({ offset: true }).nullable(),
   // First successful redemption of the *current* token — not recent app

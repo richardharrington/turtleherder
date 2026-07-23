@@ -199,6 +199,122 @@ describe("GET /api/health", () => {
   });
 });
 
+describe("public team creation and settings", () => {
+  const input = {
+    name: "Sunset Rovers",
+    slug: "sunset-rovers",
+    fullSide: 7,
+    minToPlay: 5,
+    menCeiling: null,
+    womenFloor: null,
+    floorType: null,
+    keeperScoping: "included",
+    quotaNounSingular: null,
+    quotaNounPlural: null,
+    timezone: "America/Los_Angeles",
+    captain: "Sam Rivera",
+    website: "",
+  };
+  let creatorCookie = "";
+
+  it("creates a valid genderless team, captain, open stint, and signed-in key", async () => {
+    const res = await jsonRequest("POST", "/api/teams", input, null);
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { slug: string; captainJoinUrl: string };
+    expect(body.slug).toBe("sunset-rovers");
+    expect(body.captainJoinUrl).toMatch(
+      /^https:\/\/turtleherder\.example\/join\/[A-Za-z0-9_-]+$/,
+    );
+    creatorCookie = res.headers.get("set-cookie")!.split(";")[0]!;
+
+    const teamRes = await get("/api/teams/sunset-rovers", creatorCookie);
+    expect(teamRes.status).toBe(200);
+    expect((await teamRes.json()) as Team).toMatchObject({
+      name: "Sunset Rovers",
+      slug: "sunset-rovers",
+      fullSide: 7,
+      minToPlay: 5,
+      womenFloor: null,
+      quotaNounSingular: null,
+      quotaNounPlural: null,
+    });
+    const me = await get("/api/teams/sunset-rovers/me", creatorCookie);
+    expect(await me.json()).toMatchObject({ name: "Sam Rivera", isCaptain: true });
+    const stint = await pool.query(
+      `SELECT 1 FROM roster_membership m
+       JOIN player p ON p.id = m.player_id
+       JOIN team t ON t.id = p.team_id
+       WHERE t.slug = 'sunset-rovers' AND m.left_at IS NULL`,
+    );
+    expect(stint.rows).toHaveLength(1);
+  });
+
+  it("adds another created team to an existing keyring", async () => {
+    const existingSessionId = creatorCookie.split("=")[1]!;
+    const res = await jsonRequest(
+      "POST",
+      "/api/teams",
+      { ...input, name: "Sunset Reserves", slug: "sunset-reserves" },
+      creatorCookie,
+    );
+    expect(res.status).toBe(201);
+    expect(res.headers.get("set-cookie")).toContain(`th_session=${existingSessionId}`);
+    const original = await get("/api/teams/sunset-rovers", creatorCookie);
+    const reserves = await get("/api/teams/sunset-reserves", creatorCookie);
+    expect(original.status).toBe(200);
+    expect(reserves.status).toBe(200);
+  });
+
+  it("reports collisions only on submit and rejects reserved slugs", async () => {
+    const collision = await jsonRequest("POST", "/api/teams", input, null);
+    expect(collision.status).toBe(409);
+    expect(await collision.json()).toEqual({ error: "slug taken" });
+
+    const reserved = await jsonRequest(
+      "POST",
+      "/api/teams",
+      { ...input, name: "API Team", slug: "api" },
+      null,
+    );
+    expect(reserved.status).toBe(400);
+  });
+
+  it("silently discards a honeypot submission", async () => {
+    const res = await jsonRequest(
+      "POST",
+      "/api/teams",
+      { ...input, name: "Bot Team", slug: "bot-team", website: "https://spam.example" },
+      null,
+    );
+    expect(res.status).toBe(204);
+    const row = await pool.query(`SELECT 1 FROM team WHERE slug = 'bot-team'`);
+    expect(row.rows).toHaveLength(0);
+  });
+
+  it("lets captains edit name/timezone but not slug, and 403s teammates", async () => {
+    const updated = await jsonRequest(
+      "PUT",
+      "/api/teams/sunset-rovers/settings",
+      { name: "Sunset United", timezone: "UTC" },
+      creatorCookie,
+    );
+    expect(updated.status).toBe(200);
+    expect((await updated.json()) as Team).toMatchObject({
+      name: "Sunset United",
+      timezone: "UTC",
+      slug: "sunset-rovers",
+    });
+
+    const forbidden = await jsonRequest(
+      "PUT",
+      "/api/teams/testcats/settings",
+      { name: "Nope", timezone: "UTC" },
+      BOB,
+    );
+    expect(forbidden.status).toBe(403);
+  });
+});
+
 describe("the wall", () => {
   it("401s every team-scoped endpoint without a cookie", async () => {
     for (const url of [
@@ -327,9 +443,9 @@ describe("multi-team keyring", () => {
       `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
                          floor_type, quota_noun_singular, quota_noun_plural, timezone)
        VALUES ('Alpha Club', 'alpha-club', 1, 1, NULL, NULL,
-               'woman', 'women', 'UTC'),
+               NULL, NULL, 'UTC'),
               ('Beta Club', 'beta-club', 1, 1, NULL, NULL,
-               'woman', 'women', 'UTC')
+               NULL, NULL, 'UTC')
        RETURNING id, slug`,
     );
     const alphaTeamId = teams.rows.find((row) => row.slug === "alpha-club")!.id;
@@ -1032,7 +1148,7 @@ describe("captain guards and purge", () => {
     await insertSession("cap-quinn-session", quinnId);
   });
 
-  it("refuses to remove or purge the last active captain", async () => {
+  it("refuses to remove, purge, or demote the last active captain", async () => {
     const removed = await app.request(
       `/api/teams/capcats/players/${priyaId}`,
       { method: "DELETE", headers: { cookie: PRIYA } },
@@ -1048,13 +1164,38 @@ describe("captain guards and purge", () => {
     );
     expect(purged.status).toBe(409);
     expect(await purged.json()).toEqual({ error: "last captain" });
+
+    const demoted = await app.request(
+      `/api/teams/capcats/players/${priyaId}/demote`,
+      { method: "POST", headers: { cookie: PRIYA } },
+    );
+    expect(demoted.status).toBe(409);
+    expect(await demoted.json()).toEqual({ error: "last captain" });
+  });
+
+  it("allows peer promotion and demotion, including self-demotion", async () => {
+    const promoted = await app.request(
+      `/api/teams/capcats/players/${quinnId}/promote`,
+      { method: "POST", headers: { cookie: PRIYA } },
+    );
+    expect(promoted.status).toBe(204);
+
+    const selfDemoted = await app.request(
+      `/api/teams/capcats/players/${priyaId}/demote`,
+      { method: "POST", headers: { cookie: PRIYA } },
+    );
+    expect(selfDemoted.status).toBe(204);
+    const asPriya = await get("/api/teams/capcats/access", PRIYA);
+    expect(asPriya.status).toBe(403);
+
+    const restored = await app.request(
+      `/api/teams/capcats/players/${priyaId}/promote`,
+      { method: "POST", headers: { cookie: QUINN } },
+    );
+    expect(restored.status).toBe(204);
   });
 
   it("removes a captain once another active captain exists", async () => {
-    // Captaincy changes are SQL-only, as designed.
-    await pool.query(`UPDATE player SET is_captain = true WHERE id = $1`, [
-      quinnId,
-    ]);
     const removed = await app.request(
       `/api/teams/capcats/players/${priyaId}`,
       { method: "DELETE", headers: { cookie: QUINN } },
@@ -1164,13 +1305,19 @@ describe("access management (captains only)", () => {
     expect(list.status).toBe(403);
     expect(await list.json()).toEqual({ error: "forbidden" });
 
-    for (const verb of ["regenerate-token", "revoke-token"]) {
+    for (const verb of ["regenerate-token", "revoke-token", "promote", "demote"]) {
       const res = await app.request(
         `/api/teams/testcats/players/${playerIds[2]}/${verb}`,
         { method: "POST", headers: { cookie: BOB } },
       );
       expect(res.status).toBe(403);
     }
+
+    const remove = await app.request(
+      `/api/teams/testcats/players/${playerIds[2]}`,
+      { method: "DELETE", headers: { cookie: BOB } },
+    );
+    expect(remove.status).toBe(403);
   });
 
   it("lists every player's current join link, alphabetically", async () => {

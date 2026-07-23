@@ -126,6 +126,57 @@ async function hasAnotherActiveCaptain(
   return rows.length > 0;
 }
 
+export type CaptainChangeResult = "changed" | "not_found" | "last_captain";
+
+export async function promotePlayer(
+  teamId: number,
+  playerId: number,
+): Promise<CaptainChangeResult> {
+  const result = await pool.query(
+    `UPDATE player p SET is_captain = true
+     WHERE p.id = $2 AND p.team_id = $1
+       AND EXISTS (${OPEN_STINT_SQL})`,
+    [teamId, playerId],
+  );
+  return (result.rowCount ?? 0) > 0 ? "changed" : "not_found";
+}
+
+export async function demotePlayer(
+  teamId: number,
+  playerId: number,
+): Promise<CaptainChangeResult> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await lockTeam(client, teamId);
+    const target = await client.query(
+      `SELECT 1 FROM player p
+       WHERE p.id = $2 AND p.team_id = $1 AND p.is_captain
+         AND EXISTS (${OPEN_STINT_SQL})`,
+      [teamId, playerId],
+    );
+    if (target.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return "not_found";
+    }
+    if (!(await hasAnotherActiveCaptain(client, teamId, playerId))) {
+      await client.query("ROLLBACK");
+      return "last_captain";
+    }
+    await client.query(
+      `UPDATE player SET is_captain = false WHERE id = $2 AND team_id = $1`,
+      [teamId, playerId],
+    );
+    await client.query("COMMIT");
+    return "changed";
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export type RemovePlayerResult = "removed" | "not_found" | "last_captain";
 
 // Removing a player is a soft close, not a delete: the open stint gets

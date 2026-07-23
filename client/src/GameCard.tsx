@@ -148,8 +148,10 @@ export function GameCard({ game, team, meId, openRow, onOpenRow }: {
   const report = past
     ? pastRosterReport(attending.length)
     : rosterReport(status, {
-        quotaNounSingular: team.quotaNounSingular,
-        quotaNounPlural: team.quotaNounPlural,
+        // The database ties nouns to a women floor. Genderless teams never
+        // read these fallbacks; they keep the grammar call's type honest.
+        quotaNounSingular: team.quotaNounSingular ?? "player",
+        quotaNounPlural: team.quotaNounPlural ?? "players",
       });
 
   if (past && locked && !pastExpanded) {

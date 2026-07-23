@@ -36,14 +36,16 @@ import styles from "./ListPage.module.css";
 
 function titleCaseQuotaNoun(team: Team): string {
   const noun = team.quotaNounSingular;
-  return noun.charAt(0).toUpperCase() + noun.slice(1);
+  return noun === null ? "" : noun.charAt(0).toUpperCase() + noun.slice(1);
 }
 
 // Title-cased configured quota noun (e.g. "Woman"); non-quota players
 // show an em dash — a truthful bridge until the deferred coed-rules
 // model provides dominant-group nouns.
 function categoryLabel(player: Player, team: Team): string {
-  return player.countsTowardMinimum ? titleCaseQuotaNoun(team) : "—";
+  return team.quotaNounSingular !== null && player.countsTowardMinimum
+    ? titleCaseQuotaNoun(team)
+    : "—";
 }
 
 const MINIMUM_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
@@ -52,10 +54,12 @@ function PlayerForm({
   team,
   player,
   page,
+  canRemove,
 }: {
   team: Team;
   player?: Player;
   page: DisclosurePage;
+  canRemove: boolean;
 }) {
   const queryClient = useQueryClient();
   const editing = player !== undefined;
@@ -134,10 +138,10 @@ function PlayerForm({
         onKeep: page.keepEditing,
       }}
       destructive={
-        editing ? (
+        editing && canRemove ? (
           <ConfirmAction
             trigger="Remove from roster…"
-            prompt={`Remove ${player.name} from the roster? Their game history stays, and a captain can add them back later.`}
+            prompt={`Remove ${player.name} from the roster? Their game history stays, and you can add them back later.`}
             confirmLabel="Remove"
             busyLabel="Removing…"
             pending={removeMutation.isPending}
@@ -165,19 +169,21 @@ function PlayerForm({
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-        <label className={formStyles.checkboxField}>
-          <input
-            type="checkbox"
-            checked={counts}
-            onChange={(e) => setCounts(e.target.checked)}
-          />
-          <span>
-            <strong>{titleCaseQuotaNoun(team)}</strong>
-            {minimum !== null && (
-              <small>The league requires at least {minimum} on the field</small>
-            )}
-          </span>
-        </label>
+        {team.quotaNounSingular !== null && (
+          <label className={formStyles.checkboxField}>
+            <input
+              type="checkbox"
+              checked={counts}
+              onChange={(e) => setCounts(e.target.checked)}
+            />
+            <span>
+              <strong>{titleCaseQuotaNoun(team)}</strong>
+              {minimum !== null && (
+                <small>The league requires at least {minimum} on the field</small>
+              )}
+            </span>
+          </label>
+        )}
       </div>
     </FormShell>
   );
@@ -302,7 +308,13 @@ export function PlayersPage() {
   const addOpen = page.isOpen("add");
 
   const playerForm = (player?: Player) => (
-    <PlayerForm key={player?.id ?? "add"} team={team} player={player} page={page} />
+    <PlayerForm
+      key={player?.id ?? "add"}
+      team={team}
+      player={player}
+      page={page}
+      canRemove={me.isCaptain}
+    />
   );
 
   const activeRows = desktop ? (

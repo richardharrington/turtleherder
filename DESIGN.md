@@ -1537,9 +1537,9 @@ keyring switcher, and the 5.8 disclosure primitives. Validation reuses
 within their binding slots), so form and CLI agree. This forces one schema
 change: **quota nouns become nullable.** `report.ts` reads them only behind
 `status.hasGenderConstraint` / `womenNeeded > 0` (`report.ts:54,83`), so a
-non-coed team never touches them; a check ties "nouns present" to "`women_floor`
-present," mirroring the existing `(women_floor IS NULL) = (floor_type IS NULL)`
-constraint.
+non-coed team never touches them; a check ties "nouns present" to "at least one
+gender constraint (`women_floor` or `men_ceiling`) is present." This preserves
+ceiling-only rulesets, whose report also needs the protected-category nouns.
 
 **Slug — derived, shown, editable, immutable after.** `slugify(name)` pre-fills a
 visible, tweakable field (the 7/5 pattern). A **reserved denylist** (`join`,
@@ -1633,7 +1633,7 @@ teardown a stranger can no longer get by SQL support.
 | Bare `/` fallthrough | Co-equal combined page (hero + "already on a team?" block), hero first | Stranger and cold member are indistinguishable; burying the member invites duplicate teams; no PWA-install branching |
 | Form scope | D-lean-form: `name`, captain, `full_side` (7), `min_to_play` (5), detected `timezone`; coed block + nouns → skippable onboarding | Team is a valid non-coed team from creation; the config UI is built once, serving onboarding and edits |
 | Defaults 7 / 5 | Real editable pre-filled values + "change later" note | Anchors to small-sided soccer; acceptable for the audience, mitigated by visible editability |
-| Quota nouns | Become nullable (null iff no gender rule) | `report.ts` reads them only behind `hasGenderConstraint`; the constraint mirrors the `floor_type` check |
+| Quota nouns | Become nullable (null iff no gender rule) | `report.ts` reads them only behind `hasGenderConstraint`; ceiling-only rulesets therefore keep their nouns |
 | Slug | Derived, shown, editable; reserved denylist; immutable after creation | No live availability check (would break non-enumeration); collisions handled on submit via `23505` |
 | Sign-in on creation | Auto-sign-in the browser; link shown for saving | The live session is the save-your-link model's real safety net |
 | Non-captain permissions | Unchanged except removal → captains-only; configurability deferred | Self-serve doesn't alter intra-team trust; removal became an access-control action in 5.5 and should obey the same gate |
