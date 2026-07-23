@@ -30,8 +30,9 @@
 > inserts one team plus its captain and prints the captain's join link:
 >
 > ```sh
-> pnpm db:create-team --name "Brooklyn Bocce" --slug brooklyn-bocce \
->   --min-players 7 --min-quota-players 2 \
+> pnpm db:create-team -- --name "Brooklyn Bocce" --slug brooklyn-bocce \
+>   --full-side 7 --min-to-play 5 --women-floor 2 \
+>   --floor-type play_down --keeper-scoping included \
 >   --quota-noun-singular woman --quota-noun-plural women \
 >   --timezone America/New_York --captain "Alison Bechdel"
 > ```

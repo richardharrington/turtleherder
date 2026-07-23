@@ -11,16 +11,22 @@ import { z } from "zod";
 import { generateJoinToken } from "./data/access.js";
 import { pool } from "./db.js";
 
-const USAGE = `Usage: pnpm db:create-team \\
+const USAGE = `Usage: pnpm db:create-team -- \\
   --name "Brooklyn Bocce" \\
   --slug brooklyn-bocce \\
-  --min-players 7 \\
-  --min-quota-players 2 \\
+  --full-side 7 \\
+  --min-to-play 5 \\
+  [--women-floor 2] \\
+  [--men-ceiling 5] \\
+  [--floor-type play_down] \\
+  [--keeper-scoping included] \\
   --quota-noun-singular woman \\
   --quota-noun-plural women \\
   --timezone America/New_York \\
   --captain "Alison Bechdel"
 
+--floor-type defaults to play_down when --women-floor is set.
+--keeper-scoping defaults to included.
 Requires DATABASE_URL and APP_ORIGIN (e.g. https://turtleherder.com).`;
 
 function fail(message: string): never {
@@ -39,33 +45,50 @@ function isKnownTimeZone(tz: string): boolean {
   }
 }
 
+const optionalInt = z.preprocess(
+  (value) => value ?? null,
+  z.coerce.number().int().min(0).nullable(),
+);
+
 const argsSchema = z
   .object({
     name: z.string().min(1),
     slug: z
       .string()
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be lowercase letters, digits, and single hyphens"),
-    minPlayers: z.coerce.number().int().min(0),
-    minQuotaPlayers: z.coerce.number().int().min(0),
+    fullSide: z.coerce.number().int().min(0),
+    minToPlay: z.coerce.number().int().min(0),
+    menCeiling: optionalInt,
+    womenFloor: optionalInt,
+    floorType: z.enum(["play_down", "forfeit"]).nullable(),
+    keeperScoping: z.enum(["included", "excluded"]),
     quotaNounSingular: z.string().min(1),
     quotaNounPlural: z.string().min(1),
     timezone: z.string().refine(isKnownTimeZone, "must be an IANA name, e.g. America/New_York"),
     captain: z.string().min(1),
   })
-  // The roster report would otherwise ask for more quota players than players.
-  .refine((a) => a.minQuotaPlayers <= a.minPlayers, {
-    error: "--min-quota-players cannot exceed --min-players",
-    path: ["minQuotaPlayers"],
+  .refine((a) => (a.womenFloor === null) === (a.floorType === null), {
+    error: "--floor-type must be set if and only if --women-floor is set",
+    path: ["floorType"],
   });
 
 function parseCliArgs() {
+  // The root workspace script forwards its argument separator to tsx; strip
+  // that one positional marker before node:util parses the actual flags.
+  const cliArgs = process.argv.slice(2);
+  if (cliArgs[0] === "--") cliArgs.shift();
   try {
     return parseArgs({
+      args: cliArgs,
       options: {
         name: { type: "string" },
         slug: { type: "string" },
-        "min-players": { type: "string" },
-        "min-quota-players": { type: "string" },
+        "full-side": { type: "string" },
+        "min-to-play": { type: "string" },
+        "women-floor": { type: "string" },
+        "men-ceiling": { type: "string" },
+        "floor-type": { type: "string" },
+        "keeper-scoping": { type: "string" },
         "quota-noun-singular": { type: "string" },
         "quota-noun-plural": { type: "string" },
         timezone: { type: "string" },
@@ -82,8 +105,13 @@ const raw = parseCliArgs();
 const parsed = argsSchema.safeParse({
   name: raw.name,
   slug: raw.slug,
-  minPlayers: raw["min-players"],
-  minQuotaPlayers: raw["min-quota-players"],
+  fullSide: raw["full-side"],
+  minToPlay: raw["min-to-play"],
+  menCeiling: raw["men-ceiling"],
+  womenFloor: raw["women-floor"],
+  floorType: raw["floor-type"] ??
+    (raw["women-floor"] === undefined ? null : "play_down"),
+  keeperScoping: raw["keeper-scoping"] ?? "included",
   quotaNounSingular: raw["quota-noun-singular"],
   quotaNounPlural: raw["quota-noun-plural"],
   timezone: raw.timezone,
@@ -108,15 +136,20 @@ try {
   await client.query("BEGIN");
 
   const teamResult = await client.query<{ id: number }>(
-    `INSERT INTO team (name, slug, min_players, min_quota_players,
+    `INSERT INTO team (name, slug, full_side, min_to_play, men_ceiling,
+                       women_floor, floor_type, keeper_scoping,
                        quota_noun_singular, quota_noun_plural, timezone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      RETURNING id`,
     [
       args.name,
       args.slug,
-      args.minPlayers,
-      args.minQuotaPlayers,
+      args.fullSide,
+      args.minToPlay,
+      args.menCeiling,
+      args.womenFloor,
+      args.floorType,
+      args.keeperScoping,
       args.quotaNounSingular,
       args.quotaNounPlural,
       args.timezone,

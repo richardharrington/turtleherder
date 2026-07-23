@@ -66,9 +66,11 @@ try {
   );
 
   const teamResult = await client.query<{ id: number }>(
-    `INSERT INTO team (name, slug, min_players, min_quota_players,
+    `INSERT INTO team (name, slug, full_side, min_to_play, men_ceiling,
+                       women_floor, floor_type, keeper_scoping,
                        quota_noun_singular, quota_noun_plural, timezone)
-     VALUES ('Bobcats', 'bobcats', 7, 2, 'woman', 'women', 'America/New_York')
+     VALUES ('Bobcats', 'bobcats', 7, 7, NULL, 2, 'play_down', 'included',
+             'woman', 'women', 'America/New_York')
      RETURNING id`,
   );
   const teamId = teamResult.rows[0]!.id;
@@ -146,17 +148,126 @@ try {
     );
   }
 
+  // One live fixture for each additional engine shape. Their confirmed
+  // turnouts are acceptance-table cases, so joining each captain's team
+  // demonstrates the cap-only, hard-floor, and shorthanded play-down paths.
+  const engineFixtures = [
+    {
+      name: "Keeper Caps",
+      slug: "keeper-caps",
+      fullSide: 7,
+      minToPlay: 4,
+      menCeiling: 4,
+      womenFloor: null,
+      floorType: null,
+      keeperScoping: "excluded",
+      men: 8,
+      women: 0,
+    },
+    {
+      name: "Hard Floor",
+      slug: "hard-floor",
+      fullSide: 7,
+      minToPlay: 5,
+      menCeiling: 5,
+      womenFloor: 1,
+      floorType: "forfeit",
+      keeperScoping: "included",
+      men: 5,
+      women: 0,
+    },
+    {
+      name: "Play Down",
+      slug: "play-down",
+      fullSide: 7,
+      minToPlay: 5,
+      menCeiling: null,
+      womenFloor: 2,
+      floorType: "play_down",
+      keeperScoping: "excluded",
+      men: 6,
+      women: 1,
+    },
+  ] as const;
+  const engineCaptainLinks: Array<[name: string, slug: string, token: string]> = [];
+
+  for (const [fixtureIndex, fixture] of engineFixtures.entries()) {
+    const result = await client.query<{ id: number }>(
+      `INSERT INTO team (name, slug, full_side, min_to_play, men_ceiling,
+                         women_floor, floor_type, keeper_scoping,
+                         quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'woman', 'women',
+               'America/New_York')
+       RETURNING id`,
+      [
+        fixture.name,
+        fixture.slug,
+        fixture.fullSide,
+        fixture.minToPlay,
+        fixture.menCeiling,
+        fixture.womenFloor,
+        fixture.floorType,
+        fixture.keeperScoping,
+      ],
+    );
+    const fixtureTeamId = result.rows[0]!.id;
+    const fixturePlayerIds: number[] = [];
+    const categories = [
+      ...Array<boolean>(fixture.men).fill(false),
+      ...Array<boolean>(fixture.women).fill(true),
+    ];
+    for (const [playerIndex, counts] of categories.entries()) {
+      const isCaptain = playerIndex === 0;
+      const name = isCaptain
+        ? `${fixture.name} Captain`
+        : `${fixture.name} Player ${playerIndex + 1}`;
+      const joinToken = generateJoinToken();
+      const player = await client.query<{ id: number }>(
+        `INSERT INTO player
+           (team_id, name, counts_toward_minimum, is_captain, join_token)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [fixtureTeamId, name, counts, isCaptain, joinToken],
+      );
+      fixturePlayerIds.push(player.rows[0]!.id);
+      await client.query(
+        `INSERT INTO roster_membership (player_id, joined_at)
+         VALUES ($1, '-infinity')`,
+        [player.rows[0]!.id],
+      );
+      if (isCaptain) {
+        engineCaptainLinks.push([name, fixture.slug, joinToken]);
+      }
+    }
+    const fixtureGame = await client.query<{ id: number }>(
+      `INSERT INTO game (team_id, opponent_name, opponent_color, starts_at)
+       VALUES ($1, 'Engine Testers', NULL, $2)
+       RETURNING id`,
+      [fixtureTeamId, daysFromNow(5 + fixtureIndex, 19)],
+    );
+    for (const fixturePlayerId of fixturePlayerIds) {
+      await client.query(
+        `INSERT INTO attendance (player_id, game_id, status)
+         VALUES ($1, $2, 'yes')`,
+        [fixturePlayerId, fixtureGame.rows[0]!.id],
+      );
+    }
+  }
+
   await client.query("COMMIT");
   console.log(
     `Seeded team 'bobcats' with ${players.length} players, ${games.length} games ` +
-      `(1 bye), and ${responses.length} attendance responses.`,
+      `(1 bye), plus ${engineFixtures.length} coed-engine fixture teams.`,
   );
   // The cookie is scoped to localhost (ports don't matter), so this link
   // signs you in for the Vite dev server too.
+  const origin = `http://localhost:${process.env.PORT ?? 3000}`;
   console.log(
-    `Captain Alison Bechdel's join link: ` +
-      `http://localhost:${process.env.PORT ?? 3000}/join/${captainJoinToken}`,
+    `Captain Alison Bechdel's join link: ${origin}/join/${captainJoinToken}`,
   );
+  for (const [name, slug, token] of engineCaptainLinks) {
+    console.log(`${name}'s (${slug}) join link: ${origin}/join/${token}`);
+  }
 } catch (err) {
   await client.query("ROLLBACK");
   throw err;
