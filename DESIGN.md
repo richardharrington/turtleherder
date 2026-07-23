@@ -1460,6 +1460,176 @@ picker** and **per-league provenance record** ideas (both captured in
 | Entry | `db:create-team` + defaults; no config UI (that's m7) | Existing rows backfilled the same way |
 | Delivery | Two commits, sliced by coupling | (1) schema+engine+report+client+tests; (2) CLI+seed fixtures+docs |
 
+## Self-serve teams (designed July 2026, build in milestone 7)
+
+Settled in a design interview (July 2026, the self-serve grill). Milestone 7
+exposes everything `create-team.ts` already does — insert a `team` row and its
+config, the first captain `player`, an open `roster_membership` stint, a minted
+join token — through a public, unauthenticated web form. The CLI's own header
+calls itself "a dry run for milestone 7's self-serve create-team flow"; this is
+that flow. Two things ride along that the roadmap flagged for this slot: it
+**reopens the non-captain permissions question** (resolved below), and it is the
+milestone that finally earns a **captains-only team-settings page** (the
+coed-rules config UI has waited for exactly this).
+
+**Identity and recovery — no PII beyond names, still.** The app has never
+modeled a person: a join link in an httpOnly cookie *is* the credential, and the
+keyring holds only what a browser proved it has. Self-serve doesn't change that.
+The form collects no email, no password, no account. On success the browser is
+signed in on the spot and shown its captain link with one loud instruction —
+**save this: bookmark it, or email it to yourself.** The user's own inbox becomes
+the durable recovery store; turtleherder never sends, stores, or sees an email
+address. The one gap — a lost link with a lost session — is mitigated three ways:
+the persistent PWA/cookie session, the loud save-the-link moment, and co-captains
+(any captain can re-mint any teammate's link — already built; `regenerate-token`
+is captain-gated and team-scoped, `access.ts:101`). *Rejected:* optional
+email-for-recovery (the only option that stores PII, and it drags outbound-mail
+infrastructure into an app whose pitch is "lower-friction than email"). *Deferred:*
+a hashed recovery code — a pure superset of this, addable later as one nullable
+column and one redeem route with zero migration pain, so it waits until a real
+captain actually locks themselves out.
+
+**Abuse — honeypot now, rate-limit designed and deferred.** The threat is thin:
+every team page sits behind the uniform-401 wall, so a junk team has no public
+audience, no SEO surface, no enumeration, and harms no real team — the *only*
+realistic abuse is automated DB bloat, which costs nothing and is directly
+visible in the row count. So v1 ships a single zero-cost, zero-PII,
+zero-dependency **honeypot field** to catch drive-by bots. An IP **rate limit**
+is the on-target defense against bulk creation, but it carries real footguns
+behind Railway's proxy (trusting `X-Forwarded-For`, shared-IP false positives
+that can block a real second captain, a state store) — and because the threat is
+observable in your own DB, it is built **reactively** the day the row count
+moves, tuned to a real attack rather than guessed against nobody. CAPTCHA /
+Turnstile is rejected: it would be the client's first external request, breaking
+the no-CDN property, for a target with no audience.
+
+**Where it lives — the landing page, pulled forward.** A create flow nobody can
+find is functionally the SQL-only status quo, so milestone 8's landing-page
+*front door* moves here (the tip jar stays in 8). That makes `/` reckon with the
+two audiences the app **cannot tell apart**: a cold stranger and an
+invited-but-not-yet-signed-in member both land on a bare, key-less `/`.
+`WallPage` already multiplexes five states (signed-in → forward, >1-key chooser,
+`?join=invalid`, `?join=departed`, `?from=` cross-team) — all unchanged. Only the
+bare fallthrough changes, into a **co-equal combined page**: a hero
+(what-is-this + Create a team) with, immediately below and unmissable, "Already
+on a team? You need the link your captain texted you." Neither audience is buried
+— the member because a "Create a team!" pitch invites them to make a *duplicate*
+team (which is also the Q2 bloat you're guarding against); the stranger because
+self-serve exists for them. Explicitly **no branching on PWA install state**:
+uninstalled members are common, so `display-mode: standalone` reads "member" in
+the positive but tells you nothing in the negative, and a UI that assumes members
+installed the app is wrong.
+
+**The create form — dead simple, rules deferred to onboarding.** The coed block
+is a six-parameter, survey-derived engine; a wall of it at signup is the opposite
+of frictionless, and omitting it degrades the app's distinguishing feature. So
+the form asks only the universal minimum — `name`, captain name, `full_side`
+(default **7**), `min_to_play` (default **5**), and a browser-detected `timezone`
+to confirm — creating a **valid, report-producing non-coed team** from the first
+second. `full_side`/`min_to_play` ship as real, editable pre-filled values with a
+"you can change these later" note (they anchor toward small-sided soccer, an
+acceptable opinion for the actual audience, mitigated by visible editability).
+The coed block and the quota nouns move to a **skippable first-run onboarding
+step** that is just the settings page in different framing — the config UI is
+built once and serves both callers, the same build-once pattern as auth's UI, the
+keyring switcher, and the 5.8 disclosure primitives. Validation reuses
+`create-team.ts`'s zod verbatim (`min_to_play ≤ full_side`, floors/ceilings
+within their binding slots), so form and CLI agree. This forces one schema
+change: **quota nouns become nullable.** `report.ts` reads them only behind
+`status.hasGenderConstraint` / `womenNeeded > 0` (`report.ts:54,83`), so a
+non-coed team never touches them; a check ties "nouns present" to "`women_floor`
+present," mirroring the existing `(women_floor IS NULL) = (floor_type IS NULL)`
+constraint.
+
+**Slug — derived, shown, editable, immutable after.** `slugify(name)` pre-fills a
+visible, tweakable field (the 7/5 pattern). A **reserved denylist** (`join`,
+`api`, `create`, the empty string, and future-proofing like `assets` / `health` /
+`.well-known`) is enforced regardless of who edits it, because slugs live at
+`/:slug` and a team named `api` is a routing bug, not a cosmetic clash.
+Deliberately **no live availability check**: it would announce which team slugs
+exist, punching through the non-enumeration guarantee — collisions are handled on
+submit (`23505` → "that URL's taken"). The slug is **immutable after creation**;
+it is the team's texted-everywhere URL, and "saved links never change" is a
+standing value. `name` and `timezone` stay editable on the settings page.
+
+**Sign-in on creation.** The creator's browser gets the session immediately — the
+join link is shown for *saving*, not for clicking-to-enter. This is what makes the
+save-your-link recovery model real: the safety net is the live session, so the
+creator must be persistent from moment one.
+
+**Permissions — removal becomes captains-only; configurability still deferred.**
+The reopened question resolves *against* structural change, for a sharper reason
+than "population of zero": self-serve alters how teams come into being, not who is
+inside any team's wall. A captain still mints the team and texts individual links;
+no stranger lands inside an existing team, so the decade-proven "anyone inside the
+wall was invited" trust model is untouched. **One thing does change**, on its own
+merit: **player removal moves to captains-only.** In 5.5 removal quietly became an
+access-control action — it kills sessions, gates `/join`, prunes future RSVPs —
+but kept the flat permission while its siblings (revoke, regenerate, add-back) are
+captains-only. The coherent principle: **captains gate anything that flips whether
+an already-distributed link works** (removal cuts a live link, add-back re-arms
+one; add-*player* stays open because a new token does nothing until a captain
+texts it). Implementation is small: add `DELETE …/players/:playerId` to the
+`requireCaptain` list (the one roster-mutating route not already there), hide
+Remove for non-captains, and the 5.5 dialog copy reverts from "*a captain* can add
+them back" to "*you* can." Per-action **configurability stays deferred**: even
+though the settings page it needed now exists, it remains a way of avoiding the
+decision while adding permanent surface — and the first thing a captain sees
+shouldn't read like a 1:1 dump of the `team` table.
+
+**Captain management — full peer promote/demote in the UI.** The co-captain
+recovery path above is hollow if promotion is SQL-only (a stranger can't run SQL),
+so captain changes come into the UI here — and promote-without-demote would
+recreate exactly the promote/undo asymmetry removal just fixed. On the
+already-captains-only Access page, **any captain can promote any active player and
+demote or remove any captain**, bounded by the existing `hasAnotherActiveCaptain`
+guard (`players.ts:114`, already generic and already wired into remove/purge). The
+invariant is simply **≥ 1 active captain per team**, applied uniformly — self or
+other, demote or remove, all refused only when you are the last. Peer captains
+match the app's flat, ownerless admin model; a "only the creator can demote"
+hierarchy would invent an ownership concept that exists nowhere else.
+
+**The settings page — coed rules plus team identity.** Reached from onboarding and
+for later edits, captains-only. It edits the coed block, the quota nouns, and —
+because a self-serve stranger has no SQL escape hatch for a typo'd name or wrong
+timezone — **`name` and `timezone`** too (slug excluded, immutable). Editing rules
+on a live team needs no versioning or guard: future games re-report under the new
+rule; past games are immune, since `pastRosterReport` carries no quota clause
+(`report.ts:41`, the deliberate non-historization from 5.5). Editing `timezone`
+retroactively re-renders the local clock time of existing games (the `timestamptz`
+instant never moves) — correct for future games, a low-stakes cosmetic shift on
+past-tense ones. Kept lean deliberately: this is not the "giant settings page" the
+permissions-config decision refused.
+
+**Commit seams.** Three coupled clusters, sliced by coupling per the standing
+preference: the public spine (combined `/` + create form + auto-sign-in +
+honeypot), config (settings page + onboarding + the nouns-nullable migration), and
+the permissions cluster (removal → captains-only + captain management).
+
+**Deferred to the parking lot:** a captain-initiated **delete-team** — the
+self-serve counterpart to the abuse story and the "I made this by mistake"
+teardown a stranger can no longer get by SQL support.
+
+### Decision log (self-serve teams interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Identity & recovery | A-guided: no PII beyond names; show the link, tell them to save/self-email it; no server recovery | Email-for-recovery rejected — the only PII option, and it drags in mail infrastructure. Hashed recovery code deferred — a pure superset, addable later with zero migration pain |
+| Recovery redundancy | Co-captains re-mint each other's links | Already built; `regenerate-token` is captain-gated and team-scoped, so any captain can re-key any teammate |
+| Abuse (v1) | Honeypot field only | Behind the wall there's no audience; bloat is the only threat, and it's free and observable in the row count |
+| Abuse (deferred) | IP rate limit, built reactively when the row count moves | Proxy-IP footguns + shared-IP false positives aren't worth pre-building against nobody. CAPTCHA rejected (first external request) |
+| Landing-page slot | Front door pulled forward into 7; tip jar stays in 8 | A create flow nobody can find is the SQL-only status quo |
+| Bare `/` fallthrough | Co-equal combined page (hero + "already on a team?" block), hero first | Stranger and cold member are indistinguishable; burying the member invites duplicate teams; no PWA-install branching |
+| Form scope | D-lean-form: `name`, captain, `full_side` (7), `min_to_play` (5), detected `timezone`; coed block + nouns → skippable onboarding | Team is a valid non-coed team from creation; the config UI is built once, serving onboarding and edits |
+| Defaults 7 / 5 | Real editable pre-filled values + "change later" note | Anchors to small-sided soccer; acceptable for the audience, mitigated by visible editability |
+| Quota nouns | Become nullable (null iff no gender rule) | `report.ts` reads them only behind `hasGenderConstraint`; the constraint mirrors the `floor_type` check |
+| Slug | Derived, shown, editable; reserved denylist; immutable after creation | No live availability check (would break non-enumeration); collisions handled on submit via `23505` |
+| Sign-in on creation | Auto-sign-in the browser; link shown for saving | The live session is the save-your-link model's real safety net |
+| Non-captain permissions | Unchanged except removal → captains-only; configurability deferred | Self-serve doesn't alter intra-team trust; removal became an access-control action in 5.5 and should obey the same gate |
+| Captain management | Full peer promote / demote / remove on the Access page, `≥ 1 active captain` guard | Promote-only would recreate the asymmetry; `hasAnotherActiveCaptain` is already generic; ownerless peer model |
+| Settings-page scope | Coed block + nouns + `name` + `timezone`; slug immutable | Strangers have no SQL fix for typos; editing rules needs no versioning (past games immune); kept lean, not an ORM dump |
+| Team deletion | Parking lot | Self-serve teardown / "made it by mistake"; no longer a SQL-support case |
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -1607,14 +1777,23 @@ self-serve, after the keyring's build — per the deferred cluster's candidate
 slot. Full design in
 [its own section](#coed-rule-engine-designed-july-2026-build-in-milestone-65).
 
-7. **Self-serve teams** — a public create-team flow: team row, first captain,
-   and that captain's join link issued entirely through the UI. Supersedes
-   "seed/SQL only" for team *creation*; later captain changes may stay SQL
-   until this milestone decides otherwise. Brings the first spam/abuse
-   considerations.
-8. **Landing page + tip jar** — the polish pass on the public page:
-   what-is-this copy plus the single tip-jar sentence and link (GitHub
-   Sponsors or Ko-fi), per the constraints in the goal section.
+7. **Self-serve teams** — designed July 2026. A public, unauthenticated
+   create-team form doing exactly what `create-team.ts` does (team row, first
+   captain, open stint, minted link), the creator auto-signed-in and told to
+   save their link — no email, no accounts, no PII beyond names. Pulls
+   milestone 8's landing-page front door forward (tip jar stays in 8), so the
+   bare `/` becomes a co-equal stranger/member page; adds a captains-only
+   settings page (the coed-rules config UI, plus `name`/`timezone`), reached
+   via a skippable first-run onboarding; a honeypot for abuse (rate-limit
+   deferred until the row count moves); and resolves the reopened permissions
+   question — player removal becomes captains-only, full peer captain
+   management lands in the UI, per-action config still deferred. Full design in
+   [Self-serve teams](#self-serve-teams-designed-july-2026-build-in-milestone-7).
+8. **Tip jar** — the last polish sentence on the now-public landing page: a
+   single tip-jar line and link (GitHub Sponsors or Ko-fi), per the goal
+   section. The landing page itself (what-is-this copy + Create a team) moved
+   forward into milestone 7, since self-serve needed a front door to be
+   findable at all.
 
 **Parking lot** (explicitly unranked, not forgotten):
 
@@ -1627,12 +1806,13 @@ slot. Full design in
   experience; both coexist indefinitely, and universal links make already-
   texted join/game links open the native app. First-class push arrives here
   if push is ever wanted.
-- **Non-captain permissions** — **closed until milestone 7** (decided July 20,
-  2026; supersedes the earlier "captain-only removal" entry). The permission
-  model stays exactly as built: access management, the former-players list,
-  add-back, and purge are captains-only; creating/editing/removing players
-  and games, and setting attendance for *any* player, are open to everyone
-  inside the wall.
+- **Non-captain permissions** — **resolved at milestone 7** (July 2026; the
+  reopen below fired and was answered; supersedes the earlier "captain-only
+  removal" entry). The permission model stays as built **except that player
+  removal is now captains-only** (see the resolution below): access management,
+  the former-players list, add-back, purge, and removal are captains-only;
+  creating and editing players and games, and setting attendance for *any*
+  player, stay open to everyone inside the wall.
 
   Two shapes were considered and rejected for now. (a) Making removal itself
   captain-only, to fix the asymmetry surfaced in milestone 5.5 — a
@@ -1659,10 +1839,18 @@ slot. Full design in
   require the app's first team-settings page — the same surface the deferred
   coed-rules work needs — which shouldn't be shaped around its lesser tenant.
 
-  **Reopens at milestone 7 (self-serve), automatically.** Strangers creating
-  their own teams changes the stakes structurally, not anecdotally, so the
-  question gets re-asked when 7 is designed whether or not anyone has
-  complained. Until then this is settled; don't reopen it on instinct.
+  **Resolved at milestone 7 (self-serve), as promised.** The reopen fired and
+  was answered (see
+  [Self-serve teams](#self-serve-teams-designed-july-2026-build-in-milestone-7)).
+  Self-serve changes how teams come into being, not who is inside a team's wall,
+  so the flat trust model holds — with one exception. Shape (a) was **adopted**:
+  player removal is now captains-only, because 5.5 had quietly turned removal
+  into an access-control action (it kills sessions, gates `/join`, prunes RSVPs)
+  while leaving it at the open level, out of step with its siblings
+  revoke/regenerate/add-back. Shape (b), per-action configurability, stays
+  **deferred** — the settings page it needed now exists, but it is still a way
+  of avoiding the decision while adding permanent surface, and shouldn't be the
+  first thing a captain sees.
 - **Coed rules model (grill part 2)** — ✅ resolved (July 2026): grilled and
   slotted as **milestone 6.5**, its own backend milestone after the keyring's
   build and before self-serve (the config UI still waits for self-serve). How
@@ -1675,6 +1863,12 @@ slot. Full design in
   [its own section](#multi-team-keyring-designed-july-2026-built-july-2026).
   Stopped being hypothetical: the original app's users really did play on
   overlapping teams (bocce and soccer), and it's players, not just captains.
+- **Team deletion** — deferred at milestone 7 (July 2026). A captain-initiated,
+  suitably-guarded "delete this team" — the self-serve counterpart to the abuse
+  story: once strangers create their own teams, "I made this by mistake" and "we
+  disbanded" have no SQL-support escape hatch, so teardown becomes a first-class
+  captain action eventually. Not milestone-7-blocking; revisit when a self-serve
+  team actually needs removing.
 
 ## Decision log (original design interview)
 
