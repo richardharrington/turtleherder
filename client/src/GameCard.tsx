@@ -4,6 +4,7 @@ import {
   isGamePast,
   pastRosterReport,
   rosterReport,
+  rosterStatus,
   type AttendanceStatus,
   type GameWithAttendance,
   type PlayerGameStatus,
@@ -139,14 +140,17 @@ export function GameCard({ game, team, meId, openRow, onOpenRow }: {
   const past = isGamePast(game.startsAt);
   const locked = isAttendanceLocked(game.startsAt);
   const attending = game.players.filter((p) => p.status === "yes");
-  const report = past ? pastRosterReport(attending.length) : rosterReport({
-    attendingTotal: attending.length,
-    attendingQuota: attending.filter((p) => p.countsTowardMinimum).length,
-    minPlayers: team.minPlayers,
-    minQuotaPlayers: team.minQuotaPlayers,
-    quotaNounSingular: team.quotaNounSingular,
-    quotaNounPlural: team.quotaNounPlural,
+  const attendingWomen = attending.filter((p) => p.countsTowardMinimum).length;
+  const status = rosterStatus(team, {
+    men: attending.length - attendingWomen,
+    women: attendingWomen,
   });
+  const report = past
+    ? pastRosterReport(attending.length)
+    : rosterReport(status, {
+        quotaNounSingular: team.quotaNounSingular,
+        quotaNounPlural: team.quotaNounPlural,
+      });
 
   if (past && locked && !pastExpanded) {
     return (

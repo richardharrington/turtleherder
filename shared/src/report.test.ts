@@ -1,21 +1,41 @@
 import { describe, expect, it } from "vitest";
-import {
-  numWord,
-  pastRosterReport,
-  rosterReport,
-  type ReportInput,
-} from "./report.js";
+import { rosterStatus, type RosterRules } from "./engine.js";
+import { numWord, pastRosterReport, rosterReport } from "./report.js";
 
-// The classic bobcats configuration: 7 players minimum, 2 must be women.
-function bobcats(attendingTotal: number, attendingQuota: number): ReportInput {
-  return {
-    attendingTotal,
-    attendingQuota,
-    minPlayers: 7,
-    minQuotaPlayers: 2,
-    quotaNounSingular: "woman",
-    quotaNounPlural: "women",
-  };
+const nouns = {
+  quotaNounSingular: "woman",
+  quotaNounPlural: "women",
+};
+
+const bobcats: RosterRules = {
+  fullSide: 7,
+  minToPlay: 7,
+  menCeiling: null,
+  womenFloor: 2,
+  floorType: "play_down",
+  keeperScoping: "included",
+};
+
+const footy: RosterRules = {
+  fullSide: 7,
+  minToPlay: 5,
+  menCeiling: null,
+  womenFloor: 2,
+  floorType: "play_down",
+  keeperScoping: "excluded",
+};
+
+const volo: RosterRules = {
+  fullSide: 7,
+  minToPlay: 5,
+  menCeiling: 5,
+  womenFloor: 1,
+  floorType: "forfeit",
+  keeperScoping: "included",
+};
+
+function report(rules: RosterRules, men: number, women: number): string[] {
+  return rosterReport(rosterStatus(rules, { men, women }), nouns);
 }
 
 describe("numWord", () => {
@@ -32,91 +52,88 @@ describe("numWord", () => {
 });
 
 describe("rosterReport", () => {
-  it("says only what we have when both quotas are met", () => {
-    expect(rosterReport(bobcats(7, 2))).toEqual([
-      "So far we have **seven** players, **two** of whom are women.",
+  it("is silent about surplus when the team is at full strength", () => {
+    expect(report(volo, 8, 2)).toEqual([
+      "So far we have **ten** players, **two** of whom are women.",
     ]);
   });
 
-  it("asks for quota players when there are enough bodies", () => {
-    expect(rosterReport(bobcats(7, 0))).toEqual([
-      "So far we have **seven** players, **none** of whom are women.",
-      "We need **two** more women.",
+  it("renders the plain body-shortfall forfeit branch", () => {
+    expect(report(bobcats, 3, 2)).toEqual([
+      "So far we have **five** players, **two** of whom are women.",
+      "You need **two** more players to avoid forfeit.",
     ]);
   });
 
-  it("uses the singular quota noun for a shortfall of one", () => {
-    expect(rosterReport(bobcats(8, 1))).toEqual([
-      "So far we have **eight** players, **one** of whom is a woman.",
-      "We need **one** more woman.",
-    ]);
-  });
-
-  it("handles 'who must be a woman' when needs coincide at one", () => {
-    expect(rosterReport(bobcats(6, 1))).toEqual([
-      "So far we have **six** players, **one** of whom is a woman.",
-      "At a minimum we need **one** more player, who must be a woman.",
-    ]);
-  });
-
-  it("handles 'both of whom' when needs coincide at two", () => {
-    expect(rosterReport(bobcats(5, 0))).toEqual([
-      "So far we have **five** players, **none** of whom are women.",
-      "At a minimum we need **two** more players, **both** of whom must be women.",
-    ]);
-  });
-
-  it("handles 'all of whom' when needs coincide above two", () => {
-    // 4 of 7 players, none of 3 quota players: both shortfalls are 3.
-    expect(rosterReport({ ...bobcats(4, 0), minQuotaPlayers: 3 })).toEqual([
-      "So far we have **four** players, **none** of whom are women.",
-      "At a minimum we need **three** more players, **all** of whom must be women.",
-    ]);
-  });
-
-  it("handles 'N of whom' when fewer quota players than total are needed", () => {
-    expect(rosterReport(bobcats(3, 0))).toEqual([
+  it("merges body and woman shortfalls in the forfeit branch", () => {
+    expect(report(volo, 3, 0)).toEqual([
       "So far we have **three** players, **none** of whom are women.",
-      "At a minimum we need **four** more players, **two** of whom must be women.",
+      "You need **two** more players, **one** of whom must be a woman, to avoid forfeit.",
     ]);
   });
 
-  it("counts the quota shortfall as the player shortfall when it dominates", () => {
-    // 6 players, none women: roster shortfall 1, quota shortfall 2 — the
-    // original took the max.
-    expect(rosterReport(bobcats(6, 0))).toEqual([
-      "So far we have **six** players, **none** of whom are women.",
-      "At a minimum we need **two** more players, **both** of whom must be women.",
+  it("asks only for women when every added player must be a woman", () => {
+    expect(report(bobcats, 6, 1)).toEqual([
+      "So far we have **seven** players, **one** of whom is a woman.",
+      "You need **one** more woman to avoid forfeit.",
     ]);
   });
 
-  it("skips the quota clause entirely for single-sex teams", () => {
-    expect(
-      rosterReport({
-        attendingTotal: 5,
-        attendingQuota: 0,
-        minPlayers: 7,
-        minQuotaPlayers: 0,
-        quotaNounSingular: "woman",
-        quotaNounPlural: "women",
-      }),
-    ).toEqual([
+  it("renders a woman-only path from a legal side to full strength", () => {
+    expect(report(footy, 6, 1)).toEqual([
+      "So far we have **seven** players, **one** of whom is a woman.",
+      "**Six** can play now; with **one** more woman it'll be a full **seven**.",
+    ]);
+  });
+
+  it("renders a mixed path from a legal side to full strength", () => {
+    expect(report(footy, 4, 1)).toEqual([
+      "So far we have **five** players, **one** of whom is a woman.",
+      "**Five** can play now; with **two** more players, **one** of whom must be a woman, it'll be a full **seven**.",
+    ]);
+  });
+
+  it("renders a plain body path from a legal side to full strength", () => {
+    expect(report(footy, 4, 2)).toEqual([
+      "So far we have **six** players, **two** of whom are women.",
+      "**Six** can play now; with **one** more player it'll be a full **seven**.",
+    ]);
+  });
+
+  it("always shows the protected count for gender-constrained teams", () => {
+    expect(report(volo, 0, 0)[0]).toBe(
+      "So far we have **zero** players, **none** of whom are women.",
+    );
+  });
+
+  it("omits the protected count and wording for a genderless team", () => {
+    const genderless: RosterRules = {
+      fullSide: 7,
+      minToPlay: 5,
+      menCeiling: null,
+      womenFloor: null,
+      floorType: null,
+      keeperScoping: "included",
+    };
+    expect(report(genderless, 4, 1)).toEqual([
       "So far we have **five** players.",
-      "At a minimum we need **two** more players.",
+      "**Five** can play now; with **two** more players it'll be a full **seven**.",
     ]);
   });
 
-  it("handles nobody coming", () => {
-    expect(rosterReport(bobcats(0, 0))).toEqual([
-      "So far we have **zero** players.",
-      "At a minimum we need **seven** more players, **two** of whom must be women.",
-    ]);
-  });
-
-  it("says 'all of whom are' when everyone attending counts", () => {
-    expect(rosterReport(bobcats(7, 7))).toEqual([
-      "So far we have **seven** players, **all** of whom are women.",
-    ]);
+  it("uses configured singular nouns and their indefinite article", () => {
+    const status = rosterStatus(
+      { ...volo, menCeiling: null },
+      { men: 3, women: 0 },
+    );
+    expect(
+      rosterReport(status, {
+        quotaNounSingular: "adult",
+        quotaNounPlural: "adults",
+      })[1],
+    ).toBe(
+      "You need **two** more players, **one** of whom must be an adult, to avoid forfeit.",
+    );
   });
 
   it("reports a past game in past tense with no quota clause", () => {
@@ -135,18 +152,5 @@ describe("rosterReport", () => {
     expect(pastRosterReport(0)).toEqual([
       "**No** players confirmed they were playing.",
     ]);
-  });
-
-  it("uses 'an' for vowel-initial quota nouns", () => {
-    expect(
-      rosterReport({
-        attendingTotal: 6,
-        attendingQuota: 0,
-        minPlayers: 7,
-        minQuotaPlayers: 1,
-        quotaNounSingular: "adult",
-        quotaNounPlural: "adults",
-      })[1],
-    ).toBe("At a minimum we need **one** more player, who must be an adult.");
   });
 });

@@ -8,8 +8,12 @@ interface TeamRow {
   id: number;
   name: string;
   slug: string;
-  min_players: number;
-  min_quota_players: number;
+  full_side: number;
+  min_to_play: number;
+  men_ceiling: number | null;
+  women_floor: number | null;
+  floor_type: "play_down" | "forfeit" | null;
+  keeper_scoping: "included" | "excluded";
   quota_noun_singular: string;
   quota_noun_plural: string;
   timezone: string;
@@ -20,8 +24,12 @@ function toTeam(row: TeamRow): Team {
     id: row.id,
     name: row.name,
     slug: row.slug,
-    minPlayers: row.min_players,
-    minQuotaPlayers: row.min_quota_players,
+    fullSide: row.full_side,
+    minToPlay: row.min_to_play,
+    menCeiling: row.men_ceiling,
+    womenFloor: row.women_floor,
+    floorType: row.floor_type,
+    keeperScoping: row.keeper_scoping,
     quotaNounSingular: row.quota_noun_singular,
     quotaNounPlural: row.quota_noun_plural,
     timezone: row.timezone,
@@ -33,8 +41,9 @@ function toTeam(row: TeamRow): Team {
 // the session middleware's join.
 export async function getTeamById(id: number): Promise<Team> {
   const { rows } = await pool.query<TeamRow>(
-    `SELECT id, name, slug, min_players, min_quota_players,
-            quota_noun_singular, quota_noun_plural, timezone
+    `SELECT id, name, slug, full_side, min_to_play, men_ceiling,
+            women_floor, floor_type, keeper_scoping, quota_noun_singular,
+            quota_noun_plural, timezone
      FROM team
      WHERE id = $1`,
     [id],

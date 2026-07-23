@@ -102,7 +102,9 @@ function PlayerForm({
   });
 
   const phase: SavePhase = saved ? "saved" : mutation.isPending ? "saving" : "idle";
-  const minimum = MINIMUM_WORDS[team.minQuotaPlayers] ?? String(team.minQuotaPlayers);
+  const minimum = team.womenFloor === null
+    ? null
+    : MINIMUM_WORDS[team.womenFloor] ?? String(team.womenFloor);
 
   return (
     <FormShell
@@ -171,7 +173,9 @@ function PlayerForm({
           />
           <span>
             <strong>{titleCaseQuotaNoun(team)}</strong>
-            <small>The league requires at least {minimum} on the field</small>
+            {minimum !== null && (
+              <small>The league requires at least {minimum} on the field</small>
+            )}
           </span>
         </label>
       </div>

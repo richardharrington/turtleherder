@@ -36,9 +36,10 @@ export default async function globalSetup(): Promise<void> {
       "TRUNCATE team, player, roster_membership, game, attendance, session RESTART IDENTITY CASCADE",
     );
     await client.query(
-      `INSERT INTO team (name, slug, min_players, min_quota_players,
-                         quota_noun_singular, quota_noun_plural, timezone)
-       VALUES ('Testcats', 'testcats', 7, 2, 'woman', 'women', 'America/New_York')`,
+      `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Testcats', 'testcats', 7, 7, 2, 'play_down',
+               'woman', 'women', 'America/New_York')`,
     );
     await client.query(
       `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
@@ -65,10 +66,12 @@ export default async function globalSetup(): Promise<void> {
        VALUES (1, 2, 'yes'), (3, 1, 'yes')`,
     );
     await client.query(
-      `INSERT INTO team (name, slug, min_players, min_quota_players,
-                         quota_noun_singular, quota_noun_plural, timezone)
-       VALUES ('Bocce Buddies', 'bocce', 4, 0, 'woman', 'women', 'America/New_York'),
-              ('Otters', 'otters', 7, 2, 'woman', 'women', 'America/New_York')`,
+      `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Bocce Buddies', 'bocce', 4, 4, NULL, NULL,
+               'woman', 'women', 'America/New_York'),
+              ('Otters', 'otters', 7, 7, 2, 'play_down',
+               'woman', 'women', 'America/New_York')`,
     );
     await client.query(
       `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)

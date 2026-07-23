@@ -91,9 +91,10 @@ beforeAll(async () => {
   );
 
   const team = await pool.query<{ id: number }>(
-    `INSERT INTO team (name, slug, min_players, min_quota_players,
-                       quota_noun_singular, quota_noun_plural, timezone)
-     VALUES ('Testcats', 'testcats', 7, 2, 'woman', 'women', 'America/New_York')
+    `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                       floor_type, quota_noun_singular, quota_noun_plural, timezone)
+     VALUES ('Testcats', 'testcats', 7, 7, 2, 'play_down',
+             'woman', 'women', 'America/New_York')
      RETURNING id`,
   );
   const teamId = team.rows[0]!.id;
@@ -130,9 +131,10 @@ beforeAll(async () => {
 
   // A second team, to prove sessions don't cross the wall between teams.
   const otherTeam = await pool.query<{ id: number }>(
-    `INSERT INTO team (name, slug, min_players, min_quota_players,
-                       quota_noun_singular, quota_noun_plural, timezone)
-     VALUES ('Othercats', 'othercats', 7, 2, 'woman', 'women', 'America/New_York')
+    `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                       floor_type, quota_noun_singular, quota_noun_plural, timezone)
+     VALUES ('Othercats', 'othercats', 7, 7, 2, 'play_down',
+             'woman', 'women', 'America/New_York')
      RETURNING id`,
   );
   const zed = await pool.query<{ id: number }>(
@@ -322,10 +324,12 @@ describe("multi-team keyring", () => {
 
   beforeAll(async () => {
     const teams = await pool.query<{ id: number; slug: string }>(
-      `INSERT INTO team (name, slug, min_players, min_quota_players,
-                         quota_noun_singular, quota_noun_plural, timezone)
-       VALUES ('Alpha Club', 'alpha-club', 1, 0, 'woman', 'women', 'UTC'),
-              ('Beta Club', 'beta-club', 1, 0, 'woman', 'women', 'UTC')
+      `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Alpha Club', 'alpha-club', 1, 1, NULL, NULL,
+               'woman', 'women', 'UTC'),
+              ('Beta Club', 'beta-club', 1, 1, NULL, NULL,
+               'woman', 'women', 'UTC')
        RETURNING id, slug`,
     );
     const alphaTeamId = teams.rows.find((row) => row.slug === "alpha-club")!.id;
@@ -506,7 +510,11 @@ describe("GET /api/teams/:slug", () => {
     expect(res.status).toBe(200);
     const team = (await res.json()) as Team;
     expect(team.name).toBe("Testcats");
-    expect(team.minPlayers).toBe(7);
+    expect(team.fullSide).toBe(7);
+    expect(team.minToPlay).toBe(7);
+    expect(team.womenFloor).toBe(2);
+    expect(team.floorType).toBe("play_down");
+    expect(team.keeperScoping).toBe("included");
     expect(team.quotaNounPlural).toBe("women");
   });
 });
@@ -728,9 +736,10 @@ describe("roster history", () => {
 
   beforeAll(async () => {
     const team = await pool.query<{ id: number }>(
-      `INSERT INTO team (name, slug, min_players, min_quota_players,
-                         quota_noun_singular, quota_noun_plural, timezone)
-       VALUES ('Histcats', 'histcats', 7, 2, 'woman', 'women', 'America/New_York')
+      `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Histcats', 'histcats', 7, 7, 2, 'play_down',
+               'woman', 'women', 'America/New_York')
        RETURNING id`,
     );
     const teamId = team.rows[0]!.id;
@@ -992,9 +1001,10 @@ describe("captain guards and purge", () => {
 
   beforeAll(async () => {
     const team = await pool.query<{ id: number }>(
-      `INSERT INTO team (name, slug, min_players, min_quota_players,
-                         quota_noun_singular, quota_noun_plural, timezone)
-       VALUES ('Capcats', 'capcats', 7, 2, 'woman', 'women', 'America/New_York')
+      `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Capcats', 'capcats', 7, 7, 2, 'play_down',
+               'woman', 'women', 'America/New_York')
        RETURNING id`,
     );
     teamId = team.rows[0]!.id;
@@ -1263,9 +1273,10 @@ describe("join-token usage", () => {
 
   beforeAll(async () => {
     const team = await pool.query<{ id: number }>(
-      `INSERT INTO team (name, slug, min_players, min_quota_players,
-                         quota_noun_singular, quota_noun_plural, timezone)
-       VALUES ('Tokencats', 'tokencats', 7, 2, 'woman', 'women', 'America/New_York')
+      `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
+                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+       VALUES ('Tokencats', 'tokencats', 7, 7, 2, 'play_down',
+               'woman', 'women', 'America/New_York')
        RETURNING id`,
     );
     const teamId = team.rows[0]!.id;

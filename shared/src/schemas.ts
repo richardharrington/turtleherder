@@ -2,18 +2,27 @@ import { z } from "zod";
 
 // ---- Team ----
 
-export const teamSchema = z.object({
-  id: z.number().int(),
-  name: z.string(),
-  slug: z.string(),
-  minPlayers: z.number().int().min(0),
-  minQuotaPlayers: z.number().int().min(0),
-  // The noun used by the roster report, e.g. "woman"/"women". Both forms
-  // are stored because plurals aren't derivable (woman -> women).
-  quotaNounSingular: z.string(),
-  quotaNounPlural: z.string(),
-  timezone: z.string(), // IANA name, e.g. "America/New_York"
-});
+export const teamSchema = z
+  .object({
+    id: z.number().int(),
+    name: z.string(),
+    slug: z.string(),
+    fullSide: z.number().int(),
+    minToPlay: z.number().int(),
+    menCeiling: z.number().int().nullable(),
+    womenFloor: z.number().int().nullable(),
+    floorType: z.enum(["play_down", "forfeit"]).nullable(),
+    keeperScoping: z.enum(["included", "excluded"]),
+    // The noun used by the roster report, e.g. "woman"/"women". Both forms
+    // are stored because plurals aren't derivable (woman -> women).
+    quotaNounSingular: z.string(),
+    quotaNounPlural: z.string(),
+    timezone: z.string(), // IANA name, e.g. "America/New_York"
+  })
+  .refine((team) => (team.womenFloor === null) === (team.floorType === null), {
+    error: "floorType must be set if and only if womenFloor is set",
+    path: ["floorType"],
+  });
 
 export type Team = z.infer<typeof teamSchema>;
 

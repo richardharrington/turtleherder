@@ -1,23 +1,10 @@
-// The roster report: a faithful port of the grammar engine from
-// legacy/bobcats/index.php (num_word, sing_plur, and the report-building
-// block of printgame), generalized from hardcoded women/men to the team's
-// configurable quota noun.
-//
-// One sentence is reworded out of necessity: the original counted both
-// genders ("we have two women and five men, for a total of seven players"),
-// which a quota flag can't reproduce. It becomes "So far we have **seven**
-// players, **two** of whom are women."
-//
+import type { RosterStatus } from "./engine.js";
+
+// The roster report is pure grammar over the rule engine's status object.
 // Sentences are returned with **number/emphasis words** marked
 // markdown-style, exactly as the original wrapped them in <strong>.
 
-export interface ReportInput {
-  /** Players with status "yes" */
-  attendingTotal: number;
-  /** Players with status "yes" who count toward the minimum */
-  attendingQuota: number;
-  minPlayers: number;
-  minQuotaPlayers: number;
+export interface QuotaNouns {
   quotaNounSingular: string; // e.g. "woman"
   quotaNounPlural: string; // e.g. "women"
 }
@@ -42,6 +29,10 @@ function indefiniteArticle(noun: string): string {
   return /^[aeiou]/i.test(noun) ? "an" : "a";
 }
 
+function initialCap(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 // The report for a game already played: past tense, and no quota clause at
 // all — the quota flag is only ever read for upcoming games (see DESIGN.md's
 // Roster history section). "Confirmed" is doing deliberate work: the
@@ -49,73 +40,83 @@ function indefiniteArticle(noun: string): string {
 // was there.
 export function pastRosterReport(attendingTotal: number): string[] {
   const count =
-    attendingTotal === 0
-      ? "No"
-      : numWord(attendingTotal).charAt(0).toUpperCase() +
-        numWord(attendingTotal).slice(1);
+    attendingTotal === 0 ? "No" : initialCap(numWord(attendingTotal));
   return [
     `**${count}** ${players(attendingTotal)} confirmed they were playing.`,
   ];
 }
 
-export function rosterReport(input: ReportInput): string[] {
-  const {
-    attendingTotal,
-    attendingQuota,
-    minPlayers,
-    minQuotaPlayers,
-    quotaNounSingular,
-    quotaNounPlural,
-  } = input;
+function need(
+  playersNeeded: number,
+  womenNeeded: number,
+  nouns: QuotaNouns,
+): string {
+  if (womenNeeded === 0) {
+    return `**${numWord(playersNeeded)}** more ${players(playersNeeded)}`;
+  }
 
-  const quotaNeeded = minQuotaPlayers - attendingQuota;
-  // As in the original: if the quota shortfall exceeds the roster
-  // shortfall, the quota shortfall is how many players we still need.
-  const playersNeeded = Math.max(minPlayers - attendingTotal, quotaNeeded);
+  if (playersNeeded === womenNeeded) {
+    const noun =
+      womenNeeded === 1 ? nouns.quotaNounSingular : nouns.quotaNounPlural;
+    return `**${numWord(womenNeeded)}** more ${noun}`;
+  }
 
+  const quota =
+    womenNeeded === 1
+      ? `${indefiniteArticle(nouns.quotaNounSingular)} ${nouns.quotaNounSingular}`
+      : nouns.quotaNounPlural;
+  return (
+    `**${numWord(playersNeeded)}** more ${players(playersNeeded)}, ` +
+    `**${numWord(womenNeeded)}** of whom must be ${quota}`
+  );
+}
+
+export function rosterReport(
+  status: RosterStatus,
+  nouns: QuotaNouns,
+): string[] {
   const sentences: string[] = [];
+  let have =
+    `So far we have **${numWord(status.attendingTotal)}** ` +
+    players(status.attendingTotal);
 
-  // Sentence 1: what we have.
-  let have = `So far we have **${numWord(attendingTotal)}** ${players(attendingTotal)}`;
-  if (minQuotaPlayers > 0 && attendingTotal > 0) {
-    if (attendingQuota === 0) {
-      have += `, **none** of whom are ${quotaNounPlural}`;
-    } else if (attendingQuota === 1) {
-      have += `, **one** of whom is ${indefiniteArticle(quotaNounSingular)} ${quotaNounSingular}`;
-    } else if (attendingQuota === attendingTotal) {
-      have += `, **all** of whom are ${quotaNounPlural}`;
+  if (status.hasGenderConstraint) {
+    if (status.attendingQuota === 0) {
+      have += `, **none** of whom are ${nouns.quotaNounPlural}`;
+    } else if (status.attendingQuota === 1) {
+      have +=
+        `, **one** of whom is ${indefiniteArticle(nouns.quotaNounSingular)} ` +
+        nouns.quotaNounSingular;
+    } else if (status.attendingQuota === status.attendingTotal) {
+      have += `, **all** of whom are ${nouns.quotaNounPlural}`;
     } else {
-      have += `, **${numWord(attendingQuota)}** of whom are ${quotaNounPlural}`;
+      have +=
+        `, **${numWord(status.attendingQuota)}** of whom are ` +
+        nouns.quotaNounPlural;
     }
   }
-  sentences.push(have + ".");
+  sentences.push(`${have}.`);
 
-  // Sentence 2: what we still need.
-  if (attendingTotal >= minPlayers && quotaNeeded > 0) {
-    // Enough bodies, not enough quota players.
-    const noun = quotaNeeded === 1 ? quotaNounSingular : quotaNounPlural;
-    sentences.push(`We need **${numWord(quotaNeeded)}** more ${noun}.`);
-  } else if (playersNeeded > 0) {
-    let need = `At a minimum we need **${numWord(playersNeeded)}** more ${players(playersNeeded)}`;
-
-    // Here's where it gets grammatically hairy (as the original put it).
-    if (quotaNeeded > 0) {
-      if (quotaNeeded === playersNeeded) {
-        if (quotaNeeded === 1) {
-          need += `, who must be ${indefiniteArticle(quotaNounSingular)} ${quotaNounSingular}`;
-        } else if (quotaNeeded === 2) {
-          need += `, **both** of whom must be ${quotaNounPlural}`;
-        } else {
-          need += `, **all** of whom must be ${quotaNounPlural}`;
-        }
-      } else {
-        need += `, **${numWord(quotaNeeded)}** of whom must be ${quotaNounPlural}`;
-      }
-    }
-    sentences.push(need + ".");
+  const shortfall = need(
+    status.playersNeeded,
+    status.womenNeeded,
+    nouns,
+  );
+  const closesRelativeClause =
+    status.playersNeeded > status.womenNeeded && status.womenNeeded > 0
+      ? ","
+      : "";
+  if (!status.canField) {
+    sentences.push(
+      `You need ${shortfall}${closesRelativeClause} to avoid forfeit.`,
+    );
+  } else if (!status.atFullStrength) {
+    sentences.push(
+      `**${initialCap(numWord(status.sideSize))}** can play now; with ` +
+        `${shortfall}${closesRelativeClause} it'll be a full ` +
+        `**${numWord(status.fullSide)}**.`,
+    );
   }
-  // If we have enough players and enough quota players, there is no
-  // second sentence — same as the original.
 
   return sentences;
 }
