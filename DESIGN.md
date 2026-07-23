@@ -12,8 +12,9 @@ the front-end push's implementation details as it was built; a seventh the
 [multi-team keyring](#multi-team-keyring-designed-july-2026-built-july-2026)
 — how one browser holds several teams; an eighth (a short one) the CI
 workflow's open forks as it was built; a ninth the
-[deploy](#deploy-designed-july-2026-build-in-milestone-5) (July 2026
-throughout).
+[deploy](#deploy-designed-july-2026-build-in-milestone-5); and a tenth the
+[coed rule engine](#coed-rule-engine-designed-july-2026-build-in-milestone-65)
+(July 2026 throughout).
 
 ## Goal
 
@@ -1264,6 +1265,201 @@ decisions and learnings:
 | Mobile nav | Keep fixed opaque bar | Existing safe-area/content clearance stays |
 | Roadmap/docs | Milestone 5.8 + handoff | Before keyring milestone 6 |
 
+## Coed rule engine (designed July 2026, build in milestone 6.5)
+
+This is **grill part 2** — the coed-rules cluster the design overhaul split out
+(see [Deferred: the coed-rules cluster](#deferred-the-coed-rules-cluster-grill-part-2)).
+A survey of six NYC coed soccer leagues — recorded with sources, verbatim rule
+quotes, and the clarifying emails sent to each league in the repo-root
+`league-rules-questions.md` — turned the vague "generalize the quota rule" into a
+concrete engine. This section is the spec; it **supersedes the void pre-survey
+choices** flagged in the deferred subsection. It is designed for milestone 6.5,
+which slots between the keyring (6) and self-serve (7); implementation handoff in
+[`handoffs/coed-rule-engine.md`](handoffs/coed-rule-engine.md).
+
+### What the app has to answer
+
+Given who's said yes — how many bodies, and how many of them count toward the
+gender minimum — **can they field a legal side, how big is it, and what (if
+anything) do they still need?** One principle governs the whole thing:
+**maximums are on-field-at-once rules, not attendance caps.** More Yeses than
+field spots is a healthy bench, never a problem, and the report must never imply
+anyone should stay home.
+
+### The legacy model, and why it isn't enough
+
+The shipped engine (`shared/src/report.ts`, a faithful port of the original PHP)
+is **two hard minimums**: `minPlayers` and `minQuotaPlayers`, with
+`playersNeeded = max(minPlayers − attendingTotal, quotaNeeded)`. No maximum of
+any kind, no goalkeeper, no distinction between "play shorthanded" and "forfeit,"
+and full-side conflated with minimum-to-play (bobcats' `min_players = 7` meant
+both at once). The surveyed leagues need four things it can't express: a **men
+ceiling**, a **soft/hard distinction** on the women floor, a **keeper carve-out**,
+and a **full-side-vs-min-to-play split**.
+
+### The six parameters
+
+A ruleset is applied to the players **on the field**. (Each league runs several
+side sizes — 5v5, 7v7, 9v9 — with the same rule *shape* but different numbers;
+one stored ruleset is one side size. Everything below is shown at 7v7.)
+
+| Parameter | Meaning |
+|---|---|
+| `fullSide` | Players per side at full strength (7). Upper bound on the side; the "full strength" the report counts toward. |
+| `minToPlay` | Fewest players for a legal game; below it → forfeit. `minToPlay == fullSide` = no shorthanded (old bobcats). |
+| `menCeiling` (null) | Max men **on the field**. Never forfeits — surplus men sub. Null = no cap. |
+| `womenFloor` (null) | Min women/non-binary. Null = no gender minimum. |
+| `floorType` | Qualifies `womenFloor` only: `play_down` (shrink the side) or `forfeit` (hard). Null unless `womenFloor` is set. |
+| `keeperScoping` | `included` (constraints bind all on-field players) or `excluded` (one free any-gender keeper slot; constraints bind the other `fullSide − 1`). |
+| `quotaNounSingular` / `Plural` | The protected category's display noun ("woman"/"women"); already in the schema. |
+
+### Why two gender knobs, not one
+
+A *soft* `womenFloor R` is mathematically identical to a `menCeiling` of
+`fullSide − R` (play down one per missing woman ⟺ men-on-field = `F − R`). That
+equivalence is real but **only holds for the soft case.** Volo breaks it: a flat
+`menCeiling 5` *and* a hard `womenFloor 1`, independent — at full side the cap
+binds (2 non-men required), at 5–6 players the floor binds (4 men + 1 woman is a
+legal five). Neither derives from the other, so both must be first-class. They
+also behave differently: a ceiling benches surplus and never forfeits; a floor
+shrinks or forfeits. **Each league is stored the way it words its own rule** (a
+floor league stores `womenFloor`; a cap league stores `menCeiling`), and the
+report's wording is *derived* from which knob is set — so display stays
+league-native and can never drift out of sync with the math. See the goalkeeper
+and equivalence discussion for why we never flatten the keeper into an adjusted
+number: it produces wrong answers in the woman-in-goal case and stops the app
+from advising in words the captain recognizes.
+
+### Engine types observed
+
+1. **Play-down (soft)** — shortfall shrinks the legal side; reducible to a men
+   ceiling. NYC Footy standard, Urban (both confirmed by reply), NSC (as an
+   explicit `menCeiling`).
+2. **Hard floor (forfeit)** — a women/NB minimum that forfeits when unmet. Volo
+   (confirmed); NY Coed (pending its reply — the engine supports both, so the
+   answer is just a stored `floorType`, not a code change).
+3. **Ratio** — required women scale with players on the field (NYC Footy
+   50/50 & FLIP). **Out of scope for 6.5**, behind a "contact us" disclaimer.
+   Note the softener: at a fixed side size a ratio collapses to an integer
+   `womenFloor` (50/50 → 3 of 6; FLIP → 4 of 7). Only FLIP's *dynamic* play-down,
+   where the majority re-computes as the side shrinks, needs genuinely new engine
+   code — and that is the piece deferred.
+
+### The engine: largest legal side
+
+The core computes **the largest legal side you can field from this turnout**;
+forfeit, shortfall, and surplus are all consequences of it. It returns a **status
+object carrying everything the grammar reads and nothing it doesn't**: the turnout
+it was handed (so the report can say what the team *has*) and `fullSide`, plus the
+computed `canField`, the largest legal `sideSize`, `atFullStrength`, and the two
+shortfalls — players-needed and, of those, women-needed (which also drive the
+wording, so there is no forfeit-reason enum). **`report.ts` becomes pure grammar
+over that object** — so rule logic lives in exactly one place, never leaking into
+the sentence layer as it would if the report re-derived shortfalls itself. This is
+a **new module between storage and grammar**:
+`team.rules + turnout → status object → sentences`.
+
+Internally it **compiles** the stored knobs to a canonical
+`(effectiveMenCap, hardWall?)` via the soft-floor≡men-cap equivalence, then runs
+one uniform routine for every league; storage and display stay league-native.
+The keeper is explicit: `excluded` reserves one free any-gender slot and binds
+the cap and floor on the other `fullSide − 1` players. Because the engine reports
+whether *some* legal lineup exists, it always seats the keeper optimally — so
+keeper scoping changes the *verdict* only where the free slot expands capacity,
+i.e. the men-ceiling side (NSC's male keeper is a legal 5th man the cap doesn't
+see). For a plain women floor it changes only the *advice* — which of the women
+must play out — not whether a legal side exists, and that advice is out of scope
+for 6.5. This is why the keeper is modeled explicitly rather than flattened into
+an adjusted number: flattening breaks the men-ceiling verdict and the
+league-native display. Worked acceptance cases (the cap-plus-keeper edge included)
+are the spec of record and live in the handoff.
+
+### Display grammar
+
+Sport-neutral and never-guilt. The app serves bocce as well as soccer, so the
+vocabulary avoids "field," "pitch," "outfield" (use **"play"**); and because it's
+an *attendance* app, a missing player is an existing teammate who hasn't said yes
+— never "recruit." The grammar is the legacy sentence engine generalized with one
+switch. The original had a single goal — reach the full side — so it spoke one
+kind of sentence. The engine now has **two goals**: a **hard** one (`minToPlay`,
+plus any hard women floor) that *forfeits* when missed, and a **soft** one
+(`fullSide`) that only costs *side size*. Each goal gets its own voice, keyed on
+which one is in play. We deliberately drop the original's exact wording, which
+only ever addressed the one goal:
+
+- **All set** — say only what we have; surplus men are silent.
+- **Short-handed** (a legal team, but fewer than the full side would play):
+  *"Six can play now; with one more woman it'll be a full seven."* No forfeit
+  language. This is the **same compound shortfall clause as the forfeit line**, just
+  aimed at `fullSide` instead of `minToPlay` — so it says "one more woman" when the
+  missing spots must be women, "one more player" for a plain body shortage, and
+  "two more players, one of whom must be a woman" for a mix. Surfacing short-handedness is
+  the app's core job; never-block only silences *surplus*, not shortage. Fires
+  whenever a legal team is short of full — **including cap-stored leagues**, with no
+  special case: a soft men ceiling *is* a soft women floor
+  (`menCeiling C ≡ womenFloor fullSide − C`), so a cap league needs women to fill a
+  full side just like a floor league and gets the same women-phrased reminder (NSC
+  with 8 men, 0 women fields 5 and hears "with two more women it'll be a full
+  seven"). Only a genuinely genderless ruleset drops the women wording, using the
+  plain "N more players" form.
+- **Forfeit line crossed** (below `minToPlay`, or a *hard* floor unmet):
+  *"You need two more players to avoid forfeit, one of whom must be a woman."*
+  If bodies are fine but a hard floor is short: *"You need one more woman to
+  avoid forfeit."*
+
+Because all three cases share the `need(p, w)` clause, **hard-floor and soft-floor
+leagues read word-for-word identically except when a team is short on women** —
+that's the only band where the hard floor forfeits ("…to avoid forfeit") while the
+soft floor plays down ("…it'll be a full seven"); everywhere else the men-cap math
+they share produces the same sentence.
+
+### Storage: flat columns, and the rule for later
+
+The six parameters are **flat typed columns** on `team` (not a discriminated-union
+rule object). YAGNI: only the quota family exists, and our one known future
+family (ratio) mostly collapses to an integer `womenFloor` anyway. The migration
+to a `kind`-tagged union, if ever needed, is lossless and mechanical (the calc is
+already decoupled via the status object) — but it's cheapest while only the quota
+family exists, so we adopt one rule: **if we ever add a genuinely non-quota family
+(FLIP's dynamic ratio), step one of that work is the union migration, before the
+new family goes in.** The trap is not "start flat"; it's bolting a second family
+on as more flat columns. Intra-row invariants — `floorType` non-null iff
+`womenFloor` non-null; a gender-less ruleset must be intentional, not an
+empty-column accident — are enforced by a zod refine in `shared`.
+
+### Entry and backfill
+
+No captain-facing config UI in 6.5 (that waits for self-serve, milestone 7).
+Parameters are entered through `db:create-team`, which gains the new knobs with
+sensible defaults: require the minimums and nouns; default `menCeiling = null`,
+`keeperScoping = included`, `floorType = play_down`. Existing rows backfill the
+same way — legacy `min_players → fullSide = minToPlay` (preserving bobcats'
+no-shorthanded behavior exactly), `min_quota_players → womenFloor`, the rest
+defaulted. **6.5 ships the engine, not any league's answers:** individual teams'
+parameter *values* are data entered later, so nothing here blocks on the pending
+league emails.
+
+### Not in scope (deliberately)
+
+FLIP/50-50 ratio behavior; any config UI; the future **league-rules database +
+picker** and **per-league provenance record** ideas (both captured in
+`league-rules-questions.md` for a later grill, both explicitly not decided here).
+
+### Decision log (coed rule engine interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Gender constraint shape | Two independent, both-optional knobs (`menCeiling`, `womenFloor`); wording derived from which is set | Rejected: one canonical knob + skin (can't represent Volo); two knobs + independent skin (buys "compute as X, show as Y", which no league needs) |
+| Storage | Flat typed columns | Rejected union/constraint-list as YAGNI; adopted "unionize before any non-quota family" rule |
+| Engine contract | Largest-legal-side core, lean status object, `report.ts` pure grammar | Keeps rule logic in one place; report never re-derives |
+| Keeper | Single `keeperScoping` boolean | Rejected per-knob flags and a typed keeper slot — no league splits cap- from floor-exemption |
+| Soft vs hard | One `floorType` enum bound to `womenFloor`; ceiling always soft | Rejected per-knob floorType (empty for a cap) and folding hardness into `minToPlay` (the legacy conflation) |
+| Min-to-play vs full-side | Store both; `minToPlay == fullSide` = no shorthanded | Neither derives from the other |
+| Soft short-on-women framing | Layered: legal fallback + path to full strength | Sport-neutral ("play" not "field"); turnout not "recruit"; never-guilt |
+| Forfeit framing | Action-first "…to avoid forfeit", compound when both bodies and women short | Honesty outranks reassurance when the outcome is a real loss |
+| Entry | `db:create-team` + defaults; no config UI (that's m7) | Existing rows backfilled the same way |
+| Delivery | Two commits, sliced by coupling | (1) schema+engine+report+client+tests; (2) CLI+seed fixtures+docs |
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -1398,6 +1594,19 @@ subsequently restructure.
    [its own section](#multi-team-keyring-designed-july-2026-built-july-2026),
    with build choices recorded in its implementation notes. Shipped before
    self-serve so second-team creation can rely on it.
+
+**6.5 — Coed rule engine** — designed July 2026 (grill part 2). Generalizes the
+quota model from two hard minimums to the six-parameter engine — `fullSide`,
+`minToPlay`, `menCeiling`, `womenFloor`, `floorType`, `keeperScoping` — driven by
+a six-league survey (`league-rules-questions.md`). Backend-logic work: the engine
+computes the largest legal side and `report.ts` becomes pure grammar over its
+status object; parameters are entered via `db:create-team` (no config UI until
+self-serve). Ships the engine, not any league's answers, so it doesn't block on
+pending league replies. Two commits, sliced by coupling. Slotted here — before
+self-serve, after the keyring's build — per the deferred cluster's candidate
+slot. Full design in
+[its own section](#coed-rule-engine-designed-july-2026-build-in-milestone-65).
+
 7. **Self-serve teams** — a public create-team flow: team row, first captain,
    and that captain's join link issued entirely through the UI. Supersedes
    "seed/SQL only" for team *creation*; later captain changes may stay SQL
@@ -1454,13 +1663,13 @@ subsequently restructure.
   their own teams changes the stakes structurally, not anecdotally, so the
   question gets re-asked when 7 is designed whether or not anyone has
   complained. Until then this is settled; don't reopen it on instinct.
-- **Coed rules model (grill part 2)** — deliberately unslotted (July 19
-  2026). How the quota/coed rule is stored, calculated (shorthanded,
-  min-to-start), and displayed; facts and void provisional choices recorded
-  in the design overhaul section's deferred subsection. Milestone 5.75 has
-  now shipped, so the grill is unblocked; pick the slot there (candidates:
-  its own milestone before keyring's build, or bundled with self-serve where
-  its config UI lives).
+- **Coed rules model (grill part 2)** — ✅ resolved (July 2026): grilled and
+  slotted as **milestone 6.5**, its own backend milestone after the keyring's
+  build and before self-serve (the config UI still waits for self-serve). How
+  the quota rule is stored (flat columns), calculated (largest-legal-side
+  engine), and displayed (sport-neutral, forfeit-vs-play-down grammar) is
+  settled in
+  [Coed rule engine](#coed-rule-engine-designed-july-2026-build-in-milestone-65).
 - **Multi-team switching** — ✅ resolved (July 2026): promoted to milestone 6
   as the multi-team keyring, designed in
   [its own section](#multi-team-keyring-designed-july-2026-built-july-2026).
