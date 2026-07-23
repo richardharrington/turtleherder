@@ -206,3 +206,28 @@ collapsed summary. Mobile is a two-level list row; ≥1024px is a table
   margin: 0;
   color: var(--text-secondary);
 }
+.captainControl {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.captainControl label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.captainControl label > span {
+  display: flex;
+  flex-direction: column;
+}
+.captainControl small {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.actionError {
+  margin: 8px 0 0 34px;
+  color: var(--error);
+  font-size: 13px;
+}

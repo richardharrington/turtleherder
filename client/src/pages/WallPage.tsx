@@ -1,7 +1,32 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useSearchParams } from "react-router";
 import { fetchSessionTeams } from "../api.js";
+import { ButtonLink } from "../components/Button.js";
 import styles from "./WallPage.module.css";
+
+function PublicLanding() {
+  return (
+    <main className={`${styles.page} ${styles.landingPage}`}>
+      <div className={styles.landing}>
+        <section className={styles.hero}>
+          <p className={styles.wordmark}>Turtleherder</p>
+          <h1>Know who’s playing.</h1>
+          <p>
+            Simple attendance and roster planning for recreational teams —
+            without accounts, passwords, or email chains.
+          </p>
+          <ButtonLink to="/create" className={styles.createButton}>
+            Create a team
+          </ButtonLink>
+        </section>
+        <section className={styles.alreadyOnTeam}>
+          <h2>Already on a team?</h2>
+          <p>You need the link your captain texted you.</p>
+        </section>
+      </div>
+    </main>
+  );
+}
 
 // The friendly wall: what a signed-out visitor sees — bounced here on any
 // team-scoped 401, or sent here by the server after an invalid/revoked join
@@ -63,6 +88,7 @@ export function WallPage() {
         teams.find((team) => team.slug === lastSlug) ?? teams[0]!;
       return <Navigate to={`/${destination.slug}`} replace />;
     }
+    return <PublicLanding />;
   }
   if (
     !invalidJoin &&

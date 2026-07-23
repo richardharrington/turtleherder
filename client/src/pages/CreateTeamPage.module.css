@@ -1,0 +1,131 @@
+.page {
+  min-height: 100vh;
+  padding: 24px 16px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.card {
+  width: min(100%, 600px);
+  padding: 28px 22px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.wordmark {
+  display: inline-block;
+  margin: 0 0 24px;
+  color: var(--green-dark);
+  font-size: 20px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.intro {
+  margin: -6px 0 24px;
+  color: var(--text-secondary);
+}
+.card form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.card input[type="number"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.card input[type="number"]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.numberFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.slugInput {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-dim);
+}
+.slugInput > span {
+  padding-left: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.slugInput input {
+  min-width: 80px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  padding-left: 2px !important;
+}
+.note {
+  margin: -10px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.error, .submitError {
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 400;
+}
+.submitError {
+  margin: 0;
+}
+.submit {
+  width: 100%;
+  margin-top: 4px;
+}
+.honeypot {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
+.saveCallout {
+  margin: 24px 0;
+  padding: 20px;
+  border: 2px solid var(--green);
+  border-radius: var(--radius);
+  background: var(--surface-dim);
+}
+.saveCallout h2 {
+  margin-bottom: 8px;
+}
+.saveCallout p {
+  margin: 0 0 16px;
+}
+.saveCallout code {
+  display: block;
+  margin-bottom: 14px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  word-break: break-all;
+  user-select: all;
+}
+.enterLink {
+  font-weight: 700;
+}
+@media (min-width: 640px) {
+  .page { padding-top: 48px; }
+  .card { padding: 36px; }
+}

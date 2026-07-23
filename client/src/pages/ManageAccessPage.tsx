@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useOutletContext } from "react-router";
 import {
   ApiError,
+  demotePlayer,
   fetchAccess,
+  promotePlayer,
   regenerateToken,
   revokeToken,
 } from "../api.js";
@@ -30,10 +32,59 @@ import styles from "./ManageAccessPage.module.css";
 
 function statusLabel(access: PlayerAccess): string {
   const opened = access.joinTokenUsedAt !== null;
-  if (access.joinToken === null) {
-    return opened ? "Revoked · opened" : "Revoked · never opened";
-  }
-  return opened ? "Opened" : "Never opened";
+  const linkStatus = access.joinToken === null
+    ? opened ? "Revoked · opened" : "Revoked · never opened"
+    : opened ? "Opened" : "Never opened";
+  return access.isCaptain ? `Captain · ${linkStatus.toLowerCase()}` : linkStatus;
+}
+
+function CaptainToggle({
+  access,
+  team,
+  currentPlayerId,
+}: {
+  access: PlayerAccess;
+  team: Team;
+  currentPlayerId: number;
+}) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () =>
+      access.isCaptain
+        ? demotePlayer(team.slug, access.playerId)
+        : promotePlayer(team.slug, access.playerId),
+    onSuccess: async () => {
+      if (access.isCaptain && access.playerId === currentPlayerId) {
+        window.location.assign(`/${team.slug}`);
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["access", team.slug] });
+    },
+  });
+  return (
+    <div className={styles.captainControl}>
+      <label>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={access.isCaptain}
+          disabled={mutation.isPending}
+          onChange={() => mutation.mutate()}
+        />
+        <span>
+          <strong>Captain</strong>
+          <small>Captains can manage access and team settings.</small>
+        </span>
+      </label>
+      {mutation.isError && (
+        <p className={styles.actionError}>
+          {mutation.error instanceof ApiError && mutation.error.serverError === "last captain"
+            ? "Every team needs at least one captain. Promote someone else first."
+            : "Couldn’t change captain access. Try again."}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function CopyButton({ url, label = "Copy" }: { url: string; label?: string }) {
@@ -63,10 +114,12 @@ function ActiveExpansion({
   access,
   team,
   page,
+  currentPlayerId,
 }: {
   access: PlayerAccess;
   team: Team;
   page: DisclosurePage;
+  currentPlayerId: number;
 }) {
   const queryClient = useQueryClient();
   const key = `access-${access.playerId}`;
@@ -101,6 +154,7 @@ function ActiveExpansion({
 
   return (
     <div className={styles.expansion}>
+      <CaptainToggle access={access} team={team} currentPlayerId={currentPlayerId} />
       <div
         className={regenerated ? `${styles.urlBox} ${styles.urlBoxNew}` : styles.urlBox}
         data-testid="join-url"
@@ -171,9 +225,11 @@ function ActiveExpansion({
 function RevokedExpansion({
   access,
   team,
+  currentPlayerId,
 }: {
   access: PlayerAccess;
   team: Team;
+  currentPlayerId: number;
 }) {
   const queryClient = useQueryClient();
 
@@ -185,6 +241,7 @@ function RevokedExpansion({
 
   return (
     <div className={styles.expansion}>
+      <CaptainToggle access={access} team={team} currentPlayerId={currentPlayerId} />
       {access.revokedAt !== null && (
         <p className={styles.revokedNote}>
           Revoked {formatPlainDate(access.revokedAt, team.timezone)}. Their old
@@ -210,16 +267,26 @@ function RevokedExpansion({
   );
 }
 
-function rowExpansion(access: PlayerAccess, team: Team, page: DisclosurePage) {
+function rowExpansion(
+  access: PlayerAccess,
+  team: Team,
+  page: DisclosurePage,
+  currentPlayerId: number,
+) {
   return access.joinToken === null ? (
-    <RevokedExpansion access={access} team={team} />
+    <RevokedExpansion access={access} team={team} currentPlayerId={currentPlayerId} />
   ) : (
-    <ActiveExpansion access={access} team={team} page={page} />
+    <ActiveExpansion
+      access={access}
+      team={team}
+      page={page}
+      currentPlayerId={currentPlayerId}
+    />
   );
 }
 
 export function ManageAccessPage() {
-  const { team } = useOutletContext<TeamOutletContext>();
+  const { team, me } = useOutletContext<TeamOutletContext>();
   const page = useDisclosurePage();
   const desktop = useIsDesktop();
 
@@ -289,7 +356,7 @@ export function ManageAccessPage() {
                 <tr key={`${key}-details`} className={styles.expansionRow}>
                   <td colSpan={4} className={styles.expansionCell}>
                     <Expander open={open}>
-                      {open && rowExpansion(access, team, page)}
+                      {open && rowExpansion(access, team, page, me.playerId)}
                     </Expander>
                   </td>
                 </tr>,
@@ -320,7 +387,7 @@ export function ManageAccessPage() {
                   <Chevron open={open} />
                 </div>
                 <Expander open={open}>
-                  {open && rowExpansion(access, team, page)}
+                  {open && rowExpansion(access, team, page, me.playerId)}
                 </Expander>
               </li>
             );

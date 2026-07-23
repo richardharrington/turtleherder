@@ -1,0 +1,47 @@
+.card {
+  max-width: 620px;
+  padding: 20px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.card form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.slugNote {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.slugNote strong {
+  font-size: 14px;
+}
+.slugNote code {
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.slugNote small {
+  color: var(--text-secondary);
+}
+.error {
+  margin: 0;
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 400;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+@media (min-width: 640px) {
+  .card { padding: 28px; }
+}

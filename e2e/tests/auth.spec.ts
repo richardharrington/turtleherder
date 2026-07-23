@@ -9,6 +9,41 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe.configure({ mode: "serial" });
 
+test("the public landing serves strangers and invited teammates together", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Know who’s playing." })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create a team" })).toBeVisible();
+  await expect(page.locator("body")).toContainText("Already on a team?");
+  await expect(page.locator("body")).toContainText(
+    "You need the link your captain texted you.",
+  );
+});
+
+test("self-serve creation signs in the captain and shows a recovery link", async ({ page, context }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Create a team" }).click();
+  await page.getByLabel("Team name").fill("Night Owls");
+  await expect(page.getByLabel("Team URL")).toHaveValue("night-owls");
+  await page.getByLabel("Your name").fill("Nora Captain");
+  await expect(page.getByLabel("Full side")).toHaveValue("7");
+  await expect(page.getByLabel("Minimum to play")).toHaveValue("5");
+  await page.getByRole("button", { name: "Create team" }).click();
+
+  await expect(page.getByRole("heading", { name: "Your team is ready" })).toBeVisible();
+  await expect(page.locator("code")).toContainText("/join/");
+  await expect(page.locator("body")).toContainText("Bookmark it or email it to yourself");
+  expect((await context.cookies()).find((cookie) => cookie.name === "th_session")).toBeDefined();
+
+  await page.getByRole("link", { name: "Go to your team" }).click();
+  await expect(page.getByRole("heading", { name: "Night Owls Schedule" })).toBeVisible();
+  await page.getByRole("link", { name: "Settings" }).click();
+  await page.getByLabel("Team name").fill("Night Owl United");
+  await page.getByLabel("Timezone").fill("UTC");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByRole("button", { name: "Night Owl United" })).toBeVisible();
+  await expect(page.locator("body")).toContainText("/night-owls");
+});
+
 test("a signed-out visitor at a team URL is bounced to the wall", async ({
   page,
 }) => {

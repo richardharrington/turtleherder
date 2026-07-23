@@ -1,9 +1,11 @@
 import type { RouteObject } from "react-router";
+import { CreateTeamPage } from "./pages/CreateTeamPage.js";
 import { GamePage } from "./pages/GamePage.js";
 import { GamesPage } from "./pages/GamesPage.js";
 import { ManageAccessPage } from "./pages/ManageAccessPage.js";
 import { PlayersPage } from "./pages/PlayersPage.js";
 import { SchedulePage } from "./pages/SchedulePage.js";
+import { TeamSettingsPage } from "./pages/TeamSettingsPage.js";
 import { WallPage } from "./pages/WallPage.js";
 import { TeamLayout } from "./TeamLayout.js";
 
@@ -20,6 +22,10 @@ export const routes: RouteObject[] = [
     element: <WallPage />,
   },
   {
+    path: "/create",
+    element: <CreateTeamPage />,
+  },
+  {
     path: "/:teamSlug",
     element: <TeamLayout />,
     children: [
@@ -28,6 +34,7 @@ export const routes: RouteObject[] = [
       { path: "games/:gameId", element: <GamePage /> },
       { path: "players", element: <PlayersPage /> },
       { path: "access", element: <ManageAccessPage /> },
+      { path: "settings", element: <TeamSettingsPage /> },
     ],
   },
   {

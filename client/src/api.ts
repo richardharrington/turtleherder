@@ -1,5 +1,7 @@
 import type {
   AttendanceStatus,
+  CreateTeamInput,
+  CreateTeamResult,
   FormerPlayer,
   Game,
   GameInput,
@@ -10,6 +12,7 @@ import type {
   PlayerInput,
   SessionTeam,
   Team,
+  TeamSettingsInput,
 } from "@turtleherder/shared";
 
 // Thin typed wrappers around the REST API. Every endpoint gets a
@@ -52,8 +55,27 @@ function teamUrl(slug: string): string {
   return `/api/teams/${encodeURIComponent(slug)}`;
 }
 
+export async function createTeam(
+  input: CreateTeamInput,
+): Promise<CreateTeamResult> {
+  return toJson(
+    await fetch("/api/teams", jsonInit("POST", input)),
+    "create team",
+  );
+}
+
 export async function fetchTeam(slug: string): Promise<Team> {
   return toJson(await fetch(teamUrl(slug)), "fetch team");
+}
+
+export async function updateTeamSettings(
+  slug: string,
+  input: TeamSettingsInput,
+): Promise<Team> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/settings`, jsonInit("PUT", input)),
+    "update team settings",
+  );
 }
 
 export async function fetchMe(slug: string): Promise<Me> {
@@ -179,6 +201,26 @@ export async function regenerateToken(
     }),
     "regenerate token",
   );
+}
+
+export async function promotePlayer(
+  slug: string,
+  playerId: number,
+): Promise<void> {
+  const res = await fetch(`${teamUrl(slug)}/players/${playerId}/promote`, {
+    method: "POST",
+  });
+  if (!res.ok) throw await apiError(res, "promote player");
+}
+
+export async function demotePlayer(
+  slug: string,
+  playerId: number,
+): Promise<void> {
+  const res = await fetch(`${teamUrl(slug)}/players/${playerId}/demote`, {
+    method: "POST",
+  });
+  if (!res.ok) throw await apiError(res, "demote player");
 }
 
 export async function revokeToken(

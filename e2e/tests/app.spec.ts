@@ -229,6 +229,18 @@ test("adding a player inline puts them on the roster and every game", async ({
   ).toHaveText("No response");
 });
 
+test("a non-captain can edit players but cannot remove them", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+  const page = await context.newPage();
+  await page.goto("/join/e2e-bob-token");
+  await page.goto("/testcats/players");
+  const carol = page.getByTestId("player-row").filter({ hasText: "Carol" });
+  await carol.click();
+  await expect(page.getByLabel("Name")).toHaveValue("Carol");
+  await expect(page.getByRole("button", { name: "Remove from roster…" })).toHaveCount(0);
+  await context.close();
+});
+
 test("editing a player inline is pessimistic: Saving…, Saved ✓, then collapse", async ({
   page,
 }) => {
@@ -347,8 +359,8 @@ test("removing a player is reversible: former players, dead link, guarded purge,
   await page.getByRole("button", { name: "Remove from roster…" }).click();
   const confirm = page.getByTestId("inline-confirm");
   await expect(confirm).toContainText(
-    "Remove Carol from the roster? Their game history stays, and a " +
-      "captain can add them back later.",
+    "Remove Carol from the roster? Their game history stays, and you can " +
+      "add them back later.",
   );
   await confirm.getByRole("button", { name: "Remove", exact: true }).click();
 
@@ -484,6 +496,18 @@ test.describe("access", () => {
     // The Access nav item is captain-only; Alice is the captain.
     await page.getByRole("link", { name: "Access" }).click();
     await expect(page.getByRole("heading", { name: "Access" })).toBeVisible();
+
+    // Any captain can promote and demote a peer. Alice remains captain, so
+    // the last-captain invariant permits both directions here.
+    const bobRow = page.getByTestId("access-row").filter({ hasText: "Bob" });
+    await bobRow.click();
+    const captainSwitch = page.getByRole("switch", { name: /Captain/ });
+    await expect(captainSwitch).not.toBeChecked();
+    await captainSwitch.click();
+    await expect(bobRow).toContainText("Captain");
+    await page.getByRole("switch", { name: /Captain/ }).click();
+    await expect(bobRow).not.toContainText("Captain");
+    await bobRow.click();
 
     const carolRow = page.getByTestId("access-row").filter({ hasText: "Carol" });
     await expect(carolRow).toContainText("Never opened");
@@ -697,8 +721,9 @@ test("a second-team join preserves both teams, enables switching and the chooser
   await page.getByRole("button", { name: "Testcats", exact: true }).click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(page).toHaveURL("/");
+  await expect(page.locator("body")).toContainText("Already on a team?");
   await expect(page.locator("body")).toContainText(
-    "Ask your captain for your link.",
+    "You need the link your captain texted you.",
   );
   expect(
     (await context.cookies()).find((cookie) => cookie.name === "th_session"),

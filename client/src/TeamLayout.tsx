@@ -6,6 +6,7 @@ import {
   House,
   KeyRound,
   LogOut,
+  Settings,
   Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -31,6 +32,7 @@ function pageTitle(pathname: string, slug: string, teamName: string): string {
   if (rest === "/players") return "Players";
   if (rest === "/games") return "Games";
   if (rest === "/access") return "Access";
+  if (rest === "/settings") return "Settings";
   return `${teamName} Schedule`; // schedule + single-game page
 }
 
@@ -50,7 +52,10 @@ function NavItems({
     { to: `/${team.slug}/players`, label: "Players", Icon: Users, end: false },
     { to: `/${team.slug}/games`, label: "Games", Icon: CalendarDays, end: false },
     ...(me.isCaptain
-      ? [{ to: `/${team.slug}/access`, label: "Access", Icon: KeyRound, end: false }]
+      ? [
+          { to: `/${team.slug}/access`, label: "Access", Icon: KeyRound, end: false },
+          { to: `/${team.slug}/settings`, label: "Settings", Icon: Settings, end: false },
+        ]
       : []),
   ];
   return (
@@ -219,7 +224,8 @@ export function TeamLayout() {
   const widePage =
     relativePath.startsWith("/players") ||
     relativePath === "/games" ||
-    relativePath === "/access";
+    relativePath === "/access" ||
+    relativePath === "/settings";
 
   return (
     <div className={styles.shell}>
