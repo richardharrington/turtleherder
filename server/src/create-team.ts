@@ -70,7 +70,36 @@ const argsSchema = z
   .refine((a) => (a.womenFloor === null) === (a.floorType === null), {
     error: "--floor-type must be set if and only if --women-floor is set",
     path: ["floorType"],
-  });
+  })
+  // Fail fast on configs the engine can never realize: a side that can't reach
+  // its own forfeit line, or a gender knob larger than the slots it binds.
+  // Without these the mistake surfaces as a 500 at report-render time instead.
+  .refine((a) => a.minToPlay <= a.fullSide, {
+    error: "--min-to-play cannot exceed --full-side",
+    path: ["minToPlay"],
+  })
+  .refine(
+    (a) =>
+      a.womenFloor === null ||
+      a.womenFloor <=
+        a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
+    {
+      error:
+        "--women-floor cannot exceed the slots it binds (--full-side, minus the keeper when excluded)",
+      path: ["womenFloor"],
+    },
+  )
+  .refine(
+    (a) =>
+      a.menCeiling === null ||
+      a.menCeiling <=
+        a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
+    {
+      error:
+        "--men-ceiling cannot exceed the slots it binds (--full-side, minus the keeper when excluded)",
+      path: ["menCeiling"],
+    },
+  );
 
 function parseCliArgs() {
   // The root workspace script forwards its argument separator to tsx; strip

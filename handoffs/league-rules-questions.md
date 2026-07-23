@@ -62,6 +62,14 @@ both women be outfield players? And may the keeper be any gender? (Everything
 else is already spelled out on the page — play down one per missing woman,
 zero women → a legal 5-a-side, no forfeit — so there's nothing there to ask.)
 
+**Resolved (NYC Footy reply, see Emails sent):** the keeper may be **any gender**
+and **counts toward** the gender rule — a woman in goal satisfies the 2-women
+minimum (and a man in goal counts toward the men max in FLIP). So NYC Footy is
+`keeperScoping = included` — the *opposite* of NY Coed/Urban's outfield-only
+count. (Note for the engine: for a plain soft women floor this changes no
+`sideSize`/shortfall output — keeper scoping only moves the answer in men-ceiling
+leagues — but a real NYC Footy team must still be configured `included`.)
+
 ## NYC Footy — 50/50 and FLIP (7v7)
 
 **What we read:** 50/50 = "a minimum of 50% of field players must be female";
@@ -249,7 +257,13 @@ Thanks!
 
 #### response
 
-TBD
+```
+1. Goalie can be any gender & counts toward the minimum number of women on the field, or maximum number of men on the field for flip leagues.
+
+2. This varies depending on the league registrations & is communicated to the league at the beginning of the season. IE. flip leagues can turn into 50/50 leagues if we don't get enough female registrations.
+
+3. Minimum number of players for a 7 v 7 flip league is still 5 players to avoid forfeit, but you'd still need to meet the required gender ratio to avoid forfeit.
+```
 
 ### NY Coed Soccer
 
@@ -378,7 +392,7 @@ in.
 
 | League | minToPlay | men max | women/NB min | short on women | keeper | still open |
 |---|---|---|---|---|---|---|
-| NYC Footy std | 5 | (5, via play-down) | 2 | play-down 1/missing | ? | keeper scoping |
+| NYC Footy std | 5 | (5, via play-down) | 2 | play-down 1/missing | included, any gender | none |
 | NYC Footy FLIP/50-50 | ? | — | ratio (5? / 3 of 7) | ? | ? | deferred; all asked |
 | NSC | 4 | 5 (4 outfield + male GK) | none | play-down | excluded, any gender | none |
 | NY Coed | 5 (forfeit ≤4) | none | 2 (Pier 40: 3) | **PENDING** | excluded | floorType + GK gender |
@@ -415,10 +429,14 @@ in.
 - **Volo** — does a non-binary player alone satisfy the floor? (the test of the
   two-category assumption — see Cross-cutting decisions) + keeper-inclusion
   confirm.
-- **NYC Footy std** — keeper scoping (does a keeper count toward the 2 women?).
-- **FLIP/50-50** — deferred, but the combined NYC Footy email asks the ratio
-  keeper scoping, the FLIP 5-vs-4 number, play-down-vs-forfeit, and whether the
-  min-players rule is inherited.
+- **NYC Footy std** — ~~keeper scoping (does a keeper count toward the 2 women?).~~
+  **Resolved:** keeper any gender, **counts** toward the rule → `keeperScoping =
+  included`.
+- **FLIP/50-50** — deferred. NYC Footy's reply settled two of the three: the
+  min-to-play is inherited (5 to avoid forfeit) but the **ratio is a hard gate**
+  (must be met or forfeit), and the FLIP-vs-50/50 ratio is **set per season by
+  registration numbers** (administrative, not a fixed rule) — so a stored FLIP
+  ruleset would need a per-season ratio, reinforcing the deferral.
 
 ### Future milestone idea — league rules database + picker
 
