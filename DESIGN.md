@@ -1641,6 +1641,132 @@ teardown a stranger can no longer get by SQL support.
 | Settings-page scope | Coed block + nouns + `name` + `timezone`; slug immutable | Strangers have no SQL fix for typos; editing rules needs no versioning (past games immune); kept lean, not an ORM dump |
 | Team deletion | Parking lot | Self-serve teardown / "made it by mistake"; no longer a SQL-support case |
 
+## Coed-rules entry UI (designed July 2026, build in milestone 7.1)
+
+The captains-only form where a captain enters their league's coed rules — the
+form milestone 7 deliberately deferred. Its job is the hard, distinguishing part
+of the whole coed cluster: turn the [six-parameter engine](#the-six-parameters)
+into questions a non-technical captain recognizes. The engine's founding
+principle governs entry as much as display: **each league is stored the way it
+words its own rule**, so the captain describes their rule in their league's terms
+and we store the matching knob — never a grid of abstract parameters.
+
+**Form paradigm — a guided flow, one page, progressive disclosure.** Not a raw
+six-field form (the "1:1 ORM dump" the settings page exists to avoid), and not a
+league preset-picker (that's the deferred **league-rules database** — see the
+parking lot; and a picker needs a custom fallback that *is* the guided flow
+anyway, so the flow is the foundation regardless). The flow is a **single page
+whose questions reveal below as they're answered** — the 5.8 disclosure
+primitives (`client/src/components/disclosure.tsx`), not a modal wizard. Every
+question's complexity scales with the rule's: a genderless team answers one
+thing; a Volo captain sees the most.
+
+**The gender rule — a required choice, then a shape.** To the captain: *you must
+choose whether you have a gender rule before you can play, and if yes, which.*
+"No" is a valid one-tap answer; leaving it undecided is not (see the setup gate
+below). On **yes**, a picker of the four engine-realizable, non-redundant shapes
+reveals — worded as the captain's own rule, numbers filled inline:
+
+1. *A minimum of **N** women, otherwise we play a person short.* → `womenFloor` + `floorType: play_down`
+2. *A minimum of **N** women, otherwise we forfeit.* → `womenFloor` + `floorType: forfeit`
+3. *A maximum of **M** men.* → `menCeiling` (soft by definition)
+4. *A maximum of **M** men, and a minimum of **N** women, or we forfeit.* → `menCeiling` + hard `womenFloor` (Volo)
+
+Volo's both-case is a **first-class fourth option**, not tucked — progressive
+disclosure keeps it out of sight until "yes," so there's no reason to hide the
+captain who needs it. Absent by design: "cap + soft floor," because a soft floor
+mathematically *is* a men cap, so offering it would be a redundant duplicate.
+
+**The nouns — two labeled fields below the shapes.** Editing a word inside a
+rendered sentence is fiddly (and this is a mixed desktop/phone task, so no
+mobile-first tiebreaker), so the nouns are entered in dedicated fields, not
+inline; the chosen shape sentence renders them read-only. The labels name the
+**engine role, not a gender** — *"category we're protecting"* (default `women`)
+and *"category we're restricting"* (default `men`) — which is the "model the
+league rule, not identity" principle carried into the form. Grey examples sit
+beneath each (`women, women/non-binary, females` / `men, cis-men`). Only the
+**plural** is entered; the **singular is derived** by a small hard-coded rule set
+(`women→woman`, `men→man`, `people→person`, `players→player`, else strip trailing
+`s`) and shown for confirmation — imperfect derivation is safe because it's
+overridable. **Both nouns are stored** (a schema addition: the restricting group
+gets its own noun pair). The restricting field reveals only for the **cap shapes
+(3, 4)** — a pure-floor league never surfaces "men" in a sentence or report, so
+that field is a no-op for it; a value typed then hidden is preserved, not
+cleared. Note the restricting noun's only surface today is the form's own cap
+sentences — the report still never says "men" — so it's league-native form
+display plus future-proofing, not a report change.
+
+**The keeper — a two-line progressive question, cap shapes only.** Keeper scoping
+only changes the *verdict* for cap shapes, so it's asked only there. And because
+the app is sport-neutral (bocce has no keeper), it's two lines: *"Does your sport
+have a goalkeeper?"* → if yes, *"Does the keeper count toward the men limit?"*
+This adds **no schema**: "no goalkeeper" and "keeper counts" both map to
+`keeperScoping: included` (no free slot); only "keeper doesn't count" is
+`excluded`. The first line is a pure UI gate.
+
+**Game format — nullable, its own section, and the "in setup" lifecycle.**
+`full_side` / `min_to_play` move off the signup form (milestone 7 shipped them
+there) into a "Game format" section on the setup screen. They are **not
+defaulted** — that would be the one place the app stores a value nobody chose (an
+11-a-side captain silently carrying 7). Instead they become **nullable** like
+everything else, shown as `7` / `5` **placeholder** text (a suggestion, not a
+submitted value). A team is **"in setup"** until format is populated *and* the
+gender-rules choice is made; completeness is a **team fact** stamped by a nullable
+`setup_completed_at` (not localStorage — the gate is server-enforced and the fact
+must be consistent across every device and captain; localStorage holds per-browser
+UI state, the DB holds team facts). While in setup the server **blocks player
+links and game creation**, so `report.ts` and the schedule never see a null
+format — one page-level gate, not scattered null-guards. Since no links exist yet,
+**only captains ever see the in-setup state.**
+
+**Create → a dedicated setup screen.** After "Create a team," the captain lands
+on a focused setup screen — *not* the team page, which would then juggle three
+jobs at once (save-your-link, first-look, and setup). Top to bottom: the
+**save-your-link** callout (milestone 7's A-guided recovery — "this link is how
+you get back in; save it"), then Game format, then the gender question. An
+in-setup team **routes its captain back to this screen** on every visit until
+complete; there's no separate in-setup team-page view to design.
+
+**Unsupported leagues — nothing, for now.** The only rule the engine genuinely
+can't express is a *dynamic* ratio (FLIP's play-down that recomputes as the side
+shrinks); a *fixed* ratio already collapses to a plain `womenFloor` at the team's
+side size. That's one sub-league of one league, so the form says nothing special
+— that captain sets a fixed minimum for their usual side size. A **contact page**
+to route such cases is parked (see the parking lot).
+
+**Copy.** The setup-screen strings are drafted (headings, the save-link callout,
+format labels, the shape sentences above, the two noun labels, the gender yes/no,
+the keeper question, the Finish-setup button) and are **sufficient to build
+against** — final wordsmithing is Richard's, done by playing with the built app,
+*not* the building agent's to invent or agonize over.
+
+**Schema deltas 7.1 introduces:** `full_side` / `min_to_play` → nullable
+(reversing 6.5's `NOT NULL`); a nullable `setup_completed_at timestamptz`; a
+nullable restricting-group noun pair (`women` already covered by the protecting
+pair). Constraints, each noun stored where it surfaces: the **protecting** noun is
+non-null iff any gender rule (`menCeiling OR womenFloor` — the option-1 fix from
+milestone 7's build); the **restricting** noun is non-null iff `menCeiling` is
+set. `db:create-team` and the seed keep *requiring* format (an operator always
+sets it) and stamp `setup_completed_at = now()` (CLI teams are born complete).
+
+### Decision log (coed-rules entry UI interview)
+
+| Decision | Choice | Notes |
+| --- | --- | --- |
+| Form paradigm | Guided question flow, single-page progressive disclosure (5.8 primitives) | Rejected raw six-field form (ORM dump) and league preset-picker (the deferred league-rules DB; needs the flow as fallback anyway) |
+| Gender rule | Required yes/no choice, then a four-shape picker on yes | "No" is a valid completion; undecided is not. Shapes worded as the captain's own rule |
+| Shapes | Four (soft floor / hard floor / men cap / Volo's both), Volo first-class | "Cap + soft floor" omitted as a redundant duplicate of a men cap |
+| Nouns — placement | Two labeled fields below the shapes; sentence renders them read-only | Inline-in-sentence editing is fiddly; mixed desktop/phone task, so no mobile tiebreaker |
+| Nouns — labels & defaults | "Category we're protecting" (`women`) / "restricting" (`men`); grey examples | Names the engine role, not a gender — "model the rule, not identity" |
+| Nouns — forms | Plural entered; singular derived by hard-coded rules, shown + overridable | Derivation needn't be perfect because it's editable |
+| Nouns — storage | Both stored; restricting field revealed for cap shapes only, hidden-not-cleared | Restricting noun's only surface today is the form's cap sentences (report never says "men") |
+| Keeper | Two-line progressive (has goalkeeper? → counts?), cap shapes only | No schema: no-keeper and keeper-counts both `included`; sport-neutral (bocce has none) |
+| Game format placement | Nullable `full_side`/`min_to_play` in a "Game format" section; `7`/`5` as placeholder, not default | Defaulting is the one place the app would store an unchosen value |
+| Team lifecycle | "In setup" until format set + gender choice made; `setup_completed_at` in DB | Server-enforced gate blocks player links + game creation; DB not localStorage (team fact, cross-device, server-visible) |
+| Create handoff | A dedicated setup screen (save-link on top), not the team page | Team page would juggle three jobs; in-setup team routes captain to the setup screen |
+| Unsupported leagues | Nothing (dynamic ratio only; fixed ratio = a `womenFloor`); contact page parked | Honest disclaimer considered then dropped as too-edge |
+| Copy | Drafted, build-sufficient; Richard wordsmiths in the built app | Not the building agent's to invent or agonize over — all strings, keeper included |
+
 ## Roadmap
 
 Settled in a third design interview (July 2026). Sort key: **real users first**
@@ -1801,18 +1927,20 @@ slot. Full design in
    per-action config still deferred. Full design in
    [Self-serve teams](#self-serve-teams-designed-july-2026-build-in-milestone-7).
 
-**7.1 — Coed-rules entry UI** — carved out of milestone 7 (July 2026); UI and
-copy still to be grilled. The captains-only form where a captain enters their
-league's coed rules — the six engine parameters (`full_side`, `min_to_play`,
-`men_ceiling`, `women_floor`, `floor_type`, `keeper_scoping`) plus quota nouns,
-translated into questions a captain understands — its skippable first-run
-onboarding framing, the create→onboarding handoff, and all copy. Split from 7
-because that translation is the hard, distinguishing part and needs its own
-/grill-me pass, while everything else in 7 is independent of it. The *fields*,
-*validation*, and *data behavior* are already settled in
-[Self-serve teams](#self-serve-teams-designed-july-2026-build-in-milestone-7);
-7.1 settles only presentation and wording. Fractional (not a renumber) because
-section anchors embed milestone numbers.
+**7.1 — Coed-rules entry UI** — designed July 2026. The captains-only form where
+a captain enters their league's coed rules, carved out of milestone 7 because
+translating the six-parameter engine into questions a captain understands is the
+hard, distinguishing part. A guided, single-page progressive-disclosure flow: a
+required "do you have gender rules?" choice → a four-shape picker worded as the
+captain's own rule → two labeled noun fields ("protecting"/"restricting") → a
+sport-neutral two-line keeper question (cap shapes only). `full_side`/`min_to_play`
+move off signup into a nullable "Game format" section, introducing an **"in setup"
+team lifecycle** (`setup_completed_at`): a team can't create player links or games
+until format is set and the gender choice is made. Create lands on a dedicated
+setup screen (save-your-link on top). Full design + decision log in
+[Coed-rules entry UI](#coed-rules-entry-ui-designed-july-2026-build-in-milestone-71);
+implementation handoff in [`handoffs/coed-rules-ui.md`](handoffs/coed-rules-ui.md).
+Fractional (not a renumber) because section anchors embed milestone numbers.
 
 8. **Tip jar** — the last polish sentence on the now-public landing page: a
    single tip-jar line and link (GitHub Sponsors or Ko-fi), per the goal
@@ -1894,6 +2022,19 @@ section anchors embed milestone numbers.
   disbanded" have no SQL-support escape hatch, so teardown becomes a first-class
   captain action eventually. Not milestone-7-blocking; revisit when a self-serve
   team actually needs removing.
+- **Contact page** — deferred at milestone 7.1 (July 2026). A **static**
+  contact/about page (a way to reach the maintainer) that the coed form's
+  unsupported-league case, and other dead ends, could link to. Deliberately
+  static: **no form that stores addresses, no automated email** — that would
+  reintroduce the outbound-contact/PII surface the app has avoided. Reasonable to
+  add; just not now.
+- **Coed-rules league preset-picker** — deferred at milestone 7.1 (July 2026).
+  "Pick your league" presets that fill the coed parameters, over the guided flow
+  built in 7.1. Same idea as the coed section's **league-rules database + picker**
+  (see [Coed rule engine](#coed-rule-engine-designed-july-2026-build-in-milestone-65)
+  "Not in scope"): a maintained league→rules table with provenance that goes stale
+  when a league changes its rule. The guided flow is its required custom fallback
+  regardless, so the flow is built first and the picker layers on later, if ever.
 
 ## Decision log (original design interview)
 
