@@ -42,9 +42,12 @@ disclosure via the existing 5.8 primitives (`client/src/components/disclosure.ts
   - protecting noun non-null **iff** `men_ceiling OR women_floor` (already in
     place from milestone 7's option-1 fix);
   - restricting noun non-null **iff** `men_ceiling` is set.
+- Add a third `keeper_scoping` value **`none`** (widen the `CHECK` + the shared
+  zod enum; keep the default `included`). **No backfill, no engine change** — the
+  engine only tests `=== "excluded"`, so `none` already behaves like `included`.
 - `db:create-team` + seed keep **requiring** format, set the restricting noun
-  default (`man`/`men`), and stamp `setup_completed_at = now()` (CLI/seed teams
-  are born complete).
+  default (`man`/`men`), accept `none` as a `--keeper-scoping` value, and stamp
+  `setup_completed_at = now()` (CLI/seed teams are born complete).
 
 ### 2. The "in setup" gate (server-enforced)
 
@@ -100,9 +103,11 @@ Notes:
 - The **restricting** noun field reveals only for cap shapes; a value typed then
   hidden (by switching to a floor shape) is **preserved in form state, not
   cleared**, and persisted only when a cap shape is active.
-- Keeper first line is a **UI gate only** — no schema; "no goalkeeper" and
-  "keeper counts" both store `keeperScoping: included`, only "doesn't count" is
-  `excluded`.
+- Keeper stores **three** `keeperScoping` values so the two lines round-trip on
+  re-edit: Q1 "does your sport have a goalkeeper?" No → `none`, Yes → Q2; Q2
+  "does it count?" Yes → `included`, No → `excluded`. Reconstruct the two lines
+  from the stored value when editing. (See the schema note above — `none` is
+  additive, engine unchanged.)
 - The same form is reused for later edits on the settings page. Editing rules on
   a live team needs no versioning (past games are immune — `pastRosterReport`
   has no quota clause).

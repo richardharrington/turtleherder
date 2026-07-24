@@ -1700,9 +1700,17 @@ display plus future-proofing, not a report change.
 only changes the *verdict* for cap shapes, so it's asked only there. And because
 the app is sport-neutral (bocce has no keeper), it's two lines: *"Does your sport
 have a goalkeeper?"* → if yes, *"Does the keeper count toward the men limit?"*
-This adds **no schema**: "no goalkeeper" and "keeper counts" both map to
-`keeperScoping: included` (no free slot); only "keeper doesn't count" is
-`excluded`. The first line is a pure UI gate.
+Each answer stores a **distinct `keeperScoping` value** so the form round-trips
+faithfully on re-edit: **`none`** (no goalkeeper), **`included`** (a keeper that
+counts — bound like everyone), **`excluded`** (a free any-gender keeper slot).
+The `none` value was **added in 7.1**: the earlier two-value model collapsed "no
+goalkeeper" and "keeper counts" both into `included`, which then read back as the
+wrong sentence when a captain re-opened the form — a data-model gap (we asked
+"do you have a keeper?" and discarded the answer), not a copy problem. The engine
+needs **no change**: it only ever tests `keeperScoping === "excluded"`
+(`engine.ts:39,54,80`), so `none` behaves identically to `included` (bound),
+exactly as the math requires. `none` is purely additive — existing
+`included`/`excluded` rows keep their meaning, no backfill.
 
 **Game format — nullable, its own section, and the "in setup" lifecycle.**
 `full_side` / `min_to_play` move off the signup form (milestone 7 shipped them
@@ -1743,7 +1751,9 @@ against** — final wordsmithing is Richard's, done by playing with the built ap
 **Schema deltas 7.1 introduces:** `full_side` / `min_to_play` → nullable
 (reversing 6.5's `NOT NULL`); a nullable `setup_completed_at timestamptz`; a
 nullable restricting-group noun pair (`women` already covered by the protecting
-pair). Constraints, each noun stored where it surfaces: the **protecting** noun is
+pair); and a third `keeper_scoping` value **`none`** (widen the `CHECK` and the
+shared zod enum — no backfill, no engine change). Constraints, each noun stored
+where it surfaces: the **protecting** noun is
 non-null iff any gender rule (`menCeiling OR womenFloor` — the option-1 fix from
 milestone 7's build); the **restricting** noun is non-null iff `menCeiling` is
 set. `db:create-team` and the seed keep *requiring* format (an operator always
@@ -1760,7 +1770,7 @@ sets it) and stamp `setup_completed_at = now()` (CLI teams are born complete).
 | Nouns — labels & defaults | "Category we're protecting" (`women`) / "restricting" (`men`); grey examples | Names the engine role, not a gender — "model the rule, not identity" |
 | Nouns — forms | Plural entered; singular derived by hard-coded rules, shown + overridable | Derivation needn't be perfect because it's editable |
 | Nouns — storage | Both stored; restricting field revealed for cap shapes only, hidden-not-cleared | Restricting noun's only surface today is the form's cap sentences (report never says "men") |
-| Keeper | Two-line progressive (has goalkeeper? → counts?), cap shapes only | No schema: no-keeper and keeper-counts both `included`; sport-neutral (bocce has none) |
+| Keeper | Two-line progressive (has goalkeeper? → counts?), cap shapes only; three `keeperScoping` values `none`/`included`/`excluded` | `none` added in 7.1 so the form round-trips (the 2-value model read back "no goalkeeper" wrong on re-edit); engine unchanged — it only tests `=== excluded`, so `none` acts like `included`; no backfill |
 | Game format placement | Nullable `full_side`/`min_to_play` in a "Game format" section; `7`/`5` as placeholder, not default | Defaulting is the one place the app would store an unchosen value |
 | Team lifecycle | "In setup" until format set + gender choice made; `setup_completed_at` in DB | Server-enforced gate blocks player links + game creation; DB not localStorage (team fact, cross-device, server-visible) |
 | Create handoff | A dedicated setup screen (save-link on top), not the team page | Team page would juggle three jobs; in-setup team routes captain to the setup screen |
