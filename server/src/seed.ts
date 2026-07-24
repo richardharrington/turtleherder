@@ -68,9 +68,10 @@ try {
   const teamResult = await client.query<{ id: number }>(
     `INSERT INTO team (name, slug, full_side, min_to_play, men_ceiling,
                        women_floor, floor_type, keeper_scoping,
-                       quota_noun_singular, quota_noun_plural, timezone)
+                       quota_noun_singular, quota_noun_plural,
+                       setup_completed_at, timezone)
      VALUES ('Bobcats', 'bobcats', 7, 7, NULL, 2, 'play_down', 'included',
-             'woman', 'women', 'America/New_York')
+             'woman', 'women', now(), 'America/New_York')
      RETURNING id`,
   );
   const teamId = teamResult.rows[0]!.id;
@@ -195,9 +196,13 @@ try {
     const result = await client.query<{ id: number }>(
       `INSERT INTO team (name, slug, full_side, min_to_play, men_ceiling,
                          women_floor, floor_type, keeper_scoping,
-                         quota_noun_singular, quota_noun_plural, timezone)
+                         quota_noun_singular, quota_noun_plural,
+                         restricting_noun_singular, restricting_noun_plural,
+                         setup_completed_at, timezone)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'woman', 'women',
-               'America/New_York')
+               CASE WHEN $5 IS NULL THEN NULL ELSE 'man' END,
+               CASE WHEN $5 IS NULL THEN NULL ELSE 'men' END,
+               now(), 'America/New_York')
        RETURNING id`,
       [
         fixture.name,

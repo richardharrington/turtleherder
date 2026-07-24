@@ -7,8 +7,8 @@ export const teamSchema = z
     id: z.number().int(),
     name: z.string(),
     slug: z.string(),
-    fullSide: z.number().int(),
-    minToPlay: z.number().int(),
+    fullSide: z.number().int().nullable(),
+    minToPlay: z.number().int().nullable(),
     menCeiling: z.number().int().nullable(),
     womenFloor: z.number().int().nullable(),
     floorType: z.enum(["play_down", "forfeit"]).nullable(),
@@ -18,6 +18,11 @@ export const teamSchema = z
     // without either gender constraint has neither noun.
     quotaNounSingular: z.string().nullable(),
     quotaNounPlural: z.string().nullable(),
+    // The category constrained by a men ceiling. It is separate from the
+    // protected-category nouns above because each is stored where it surfaces.
+    restrictingNounSingular: z.string().nullable(),
+    restrictingNounPlural: z.string().nullable(),
+    setupCompletedAt: z.iso.datetime({ offset: true }).nullable(),
     timezone: z.string(), // IANA name, e.g. "America/New_York"
   })
   .refine((team) => (team.womenFloor === null) === (team.floorType === null), {
@@ -34,9 +39,33 @@ export const teamSchema = z
       error: "quota nouns must be set if and only if a gender constraint is set",
       path: ["quotaNounSingular"],
     },
+  )
+  .refine(
+    (team) =>
+      (team.restrictingNounSingular === null) ===
+        (team.restrictingNounPlural === null) &&
+      (team.menCeiling === null) === (team.restrictingNounSingular === null),
+    {
+      error: "restricting nouns must be set if and only if a men ceiling is set",
+      path: ["restrictingNounSingular"],
+    },
+  )
+  .refine(
+    (team) =>
+      (team.fullSide === null) === (team.minToPlay === null) &&
+      (team.setupCompletedAt === null || team.fullSide !== null),
+    {
+      error: "a completed team must have a complete game format",
+      path: ["setupCompletedAt"],
+    },
   );
 
 export type Team = z.infer<typeof teamSchema>;
+export type ReadyTeam = Team & {
+  fullSide: number;
+  minToPlay: number;
+  setupCompletedAt: string;
+};
 
 // ---- Team creation and settings ----
 
@@ -69,76 +98,95 @@ export function isKnownTimeZone(timezone: string): boolean {
 }
 
 const nullableNonnegativeInt = z.number().int().min(0).nullable();
+const nonemptyNullableString = z.string().trim().min(1).nullable();
 
-// Shared verbatim by the operator CLI and the public create endpoint, so
-// neither path can admit a ruleset the other rejects. The public form sends
-// null/default values for the coed fields whose UI belongs to milestone 7.1.
+const teamRuleFields = {
+  fullSide: z.number().int().min(0),
+  minToPlay: z.number().int().min(0),
+  menCeiling: nullableNonnegativeInt,
+  womenFloor: nullableNonnegativeInt,
+  floorType: z.enum(["play_down", "forfeit"]).nullable(),
+  keeperScoping: z.enum(["included", "excluded"]),
+  quotaNounSingular: nonemptyNullableString,
+  quotaNounPlural: nonemptyNullableString,
+  restrictingNounSingular: nonemptyNullableString,
+  restrictingNounPlural: nonemptyNullableString,
+};
+
+function validateTeamRules(
+  a: z.infer<z.ZodObject<typeof teamRuleFields>>,
+  ctx: z.RefinementCtx,
+): void {
+  const issue = (path: string, message: string) =>
+    ctx.addIssue({ code: "custom", path: [path], message });
+  if ((a.womenFloor === null) !== (a.floorType === null)) {
+    issue("floorType", "floorType must be set if and only if womenFloor is set");
+  }
+  if (
+    (a.quotaNounSingular === null) !== (a.quotaNounPlural === null) ||
+    (a.womenFloor === null && a.menCeiling === null) !==
+      (a.quotaNounSingular === null)
+  ) {
+    issue("quotaNounSingular", "quota nouns must be set if and only if a gender constraint is set");
+  }
+  if (
+    (a.restrictingNounSingular === null) !==
+      (a.restrictingNounPlural === null) ||
+    (a.menCeiling === null) !== (a.restrictingNounSingular === null)
+  ) {
+    issue("restrictingNounSingular", "restricting nouns must be set if and only if a men ceiling is set");
+  }
+  if (a.minToPlay > a.fullSide) {
+    issue("minToPlay", "Minimum to play cannot exceed full side.");
+  }
+  const bindingSlots = a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0);
+  if (a.womenFloor !== null && a.womenFloor > bindingSlots) {
+    issue("womenFloor", "Women floor cannot exceed the slots it binds.");
+  }
+  if (a.menCeiling !== null && a.menCeiling > bindingSlots) {
+    issue("menCeiling", "Men ceiling cannot exceed the slots it binds.");
+  }
+}
+
+// The operator CLI and both captain-facing rule forms all use this exact
+// schema, keeping every engine invariant in one place.
+export const teamRulesInputSchema = z
+  .object(teamRuleFields)
+  .superRefine(validateTeamRules);
+export type TeamRulesInput = z.infer<typeof teamRulesInputSchema>;
+
+const creationFields = {
+  name: z.string().trim().min(1),
+  slug: z
+    .string()
+    .trim()
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Use lowercase letters, numbers, and single hyphens.",
+    )
+    .refine((slug) => !RESERVED_TEAM_SLUGS.has(slug), "That URL is reserved."),
+  timezone: z
+    .string()
+    .trim()
+    .refine(isKnownTimeZone, "Use a valid IANA timezone."),
+  captain: z.string().trim().min(1),
+};
+
+// CLI input: operator-created teams still require a complete ruleset.
 export const createTeamInputSchema = z
-  .object({
-    name: z.string().trim().min(1),
-    slug: z
-      .string()
-      .trim()
-      .regex(
-        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-        "Use lowercase letters, numbers, and single hyphens.",
-      )
-      .refine((slug) => !RESERVED_TEAM_SLUGS.has(slug), "That URL is reserved."),
-    fullSide: z.number().int().min(0),
-    minToPlay: z.number().int().min(0),
-    menCeiling: nullableNonnegativeInt,
-    womenFloor: nullableNonnegativeInt,
-    floorType: z.enum(["play_down", "forfeit"]).nullable(),
-    keeperScoping: z.enum(["included", "excluded"]),
-    quotaNounSingular: z.string().trim().min(1).nullable(),
-    quotaNounPlural: z.string().trim().min(1).nullable(),
-    timezone: z
-      .string()
-      .trim()
-      .refine(isKnownTimeZone, "Use a valid IANA timezone."),
-    captain: z.string().trim().min(1),
-    // A real user never sees or fills this. The API silently discards a
-    // submission when it is non-empty.
-    website: z.string().max(500).optional().default(""),
-  })
-  .refine((a) => (a.womenFloor === null) === (a.floorType === null), {
-    error: "floorType must be set if and only if womenFloor is set",
-    path: ["floorType"],
-  })
-  .refine(
-    (a) =>
-      (a.quotaNounSingular === null) === (a.quotaNounPlural === null) &&
-      (a.womenFloor === null && a.menCeiling === null) ===
-        (a.quotaNounSingular === null),
-    {
-      error: "quota nouns must be set if and only if a gender constraint is set",
-      path: ["quotaNounSingular"],
-    },
-  )
-  .refine((a) => a.minToPlay <= a.fullSide, {
-    error: "Minimum to play cannot exceed full side.",
-    path: ["minToPlay"],
-  })
-  .refine(
-    (a) =>
-      a.womenFloor === null ||
-      a.womenFloor <= a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
-    {
-      error: "Women floor cannot exceed the slots it binds.",
-      path: ["womenFloor"],
-    },
-  )
-  .refine(
-    (a) =>
-      a.menCeiling === null ||
-      a.menCeiling <= a.fullSide - (a.keeperScoping === "excluded" ? 1 : 0),
-    {
-      error: "Men ceiling cannot exceed the slots it binds.",
-      path: ["menCeiling"],
-    },
-  );
-
+  .object({ ...creationFields, ...teamRuleFields })
+  .superRefine(validateTeamRules);
 export type CreateTeamInput = z.infer<typeof createTeamInputSchema>;
+
+// Public signup now asks only universal facts. The dedicated setup screen
+// supplies game format and the explicit gender-rule answer next.
+export const publicCreateTeamInputSchema = z.object({
+  ...creationFields,
+  // A real user never sees or fills this. The API silently discards a
+  // submission when it is non-empty.
+  website: z.string().max(500).optional().default(""),
+});
+export type PublicCreateTeamInput = z.infer<typeof publicCreateTeamInputSchema>;
 
 export const createTeamResultSchema = z.object({
   slug: z.string(),

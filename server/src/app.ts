@@ -1,14 +1,15 @@
 import { zValidator } from "@hono/zod-validator";
 import {
   attendanceInputSchema,
-  createTeamInputSchema,
+  publicCreateTeamInputSchema,
   DEPARTED_JOIN_REDIRECT,
   gameInputSchema,
   INVALID_JOIN_REDIRECT,
   playerInputSchema,
+  teamRulesInputSchema,
   teamSettingsInputSchema,
 } from "@turtleherder/shared";
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import {
   type AuthEnv,
@@ -52,12 +53,24 @@ import {
 import {
   createTeam,
   getTeamById,
+  isTeamSetupComplete,
+  updateTeamRules,
   updateTeamSettings,
 } from "./data/teams.js";
 
 function parseId(raw: string): number | null {
   return /^\d+$/.test(raw) ? Number(raw) : null;
 }
+
+// The one server-side lifecycle gate. Setup only moves from incomplete to
+// complete, so checking immediately before these creation handlers is enough
+// to keep null formats out of the schedule/report path.
+const requireSetupComplete: MiddlewareHandler<AuthEnv> = async (c, next) => {
+  if (!(await isTeamSetupComplete(c.get("auth").teamId))) {
+    return c.json({ error: "team setup incomplete" }, 409);
+  }
+  return next();
+};
 
 // `www` is a Railway custom domain of its own, so without this it would serve
 // the app as a second, co-equal origin. Session cookies are host-scoped and PWA
@@ -130,7 +143,7 @@ export const app = new Hono<AuthEnv>()
 
   .post(
     "/api/teams",
-    zValidator("json", createTeamInputSchema),
+    zValidator("json", publicCreateTeamInputSchema),
     async (c) => {
       const input = c.req.valid("json");
       // Silently discard honeypot submissions. A normal browser leaves this
@@ -168,6 +181,7 @@ export const app = new Hono<AuthEnv>()
   .use("/api/teams/:slug/*", requireSession)
   .use("/api/teams/:slug/access", requireCaptain)
   .use("/api/teams/:slug/settings", requireCaptain)
+  .use("/api/teams/:slug/rules", requireCaptain)
   .use("/api/teams/:slug/players/:playerId/regenerate-token", requireCaptain)
   .use("/api/teams/:slug/players/:playerId/revoke-token", requireCaptain)
   .use("/api/teams/:slug/players/:playerId/promote", requireCaptain)
@@ -199,6 +213,15 @@ export const app = new Hono<AuthEnv>()
           c.get("auth").teamId,
           c.req.valid("json"),
         ),
+      ),
+  )
+
+  .put(
+    "/api/teams/:slug/rules",
+    zValidator("json", teamRulesInputSchema),
+    async (c) =>
+      c.json(
+        await updateTeamRules(c.get("auth").teamId, c.req.valid("json")),
       ),
   )
 
@@ -271,6 +294,7 @@ export const app = new Hono<AuthEnv>()
 
   .post(
     "/api/teams/:slug/players",
+    requireSetupComplete,
     zValidator("json", playerInputSchema),
     async (c) =>
       c.json(await createPlayer(c.get("auth").teamId, c.req.valid("json")), 201),
@@ -370,6 +394,7 @@ export const app = new Hono<AuthEnv>()
 
   .post(
     "/api/teams/:slug/games",
+    requireSetupComplete,
     zValidator("json", gameInputSchema),
     async (c) =>
       c.json(await createGame(c.get("auth").teamId, c.req.valid("json")), 201),

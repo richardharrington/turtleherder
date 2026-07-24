@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type {
-  CreateTeamInput,
+  PublicCreateTeamInput,
   Team,
+  TeamRulesInput,
   TeamSettingsInput,
 } from "@turtleherder/shared";
 import { pool } from "../db.js";
@@ -14,14 +15,17 @@ interface TeamRow {
   id: number;
   name: string;
   slug: string;
-  full_side: number;
-  min_to_play: number;
+  full_side: number | null;
+  min_to_play: number | null;
   men_ceiling: number | null;
   women_floor: number | null;
   floor_type: "play_down" | "forfeit" | null;
   keeper_scoping: "included" | "excluded";
   quota_noun_singular: string | null;
   quota_noun_plural: string | null;
+  restricting_noun_singular: string | null;
+  restricting_noun_plural: string | null;
+  setup_completed_at: Date | null;
   timezone: string;
 }
 
@@ -38,6 +42,9 @@ function toTeam(row: TeamRow): Team {
     keeperScoping: row.keeper_scoping,
     quotaNounSingular: row.quota_noun_singular,
     quotaNounPlural: row.quota_noun_plural,
+    restrictingNounSingular: row.restricting_noun_singular,
+    restrictingNounPlural: row.restricting_noun_plural,
+    setupCompletedAt: row.setup_completed_at?.toISOString() ?? null,
     timezone: row.timezone,
   };
 }
@@ -47,7 +54,8 @@ function toTeam(row: TeamRow): Team {
 // the session middleware's join.
 const TEAM_COLUMNS = `id, name, slug, full_side, min_to_play, men_ceiling,
   women_floor, floor_type, keeper_scoping, quota_noun_singular,
-  quota_noun_plural, timezone`;
+  quota_noun_plural, restricting_noun_singular, restricting_noun_plural,
+  setup_completed_at, timezone`;
 
 export async function getTeamById(id: number): Promise<Team> {
   const { rows } = await pool.query<TeamRow>(
@@ -66,7 +74,7 @@ export interface CreatedTeam {
 // The public counterpart to create-team.ts: one transaction creates the team,
 // first captain, open stint, and the creator browser's first keyring key.
 export async function createTeam(
-  input: CreateTeamInput,
+  input: PublicCreateTeamInput,
   existingSessionId?: string,
 ): Promise<CreatedTeam> {
   const client = await pool.connect();
@@ -75,22 +83,13 @@ export async function createTeam(
     const teamResult = await client.query<TeamRow>(
       `INSERT INTO team (name, slug, full_side, min_to_play, men_ceiling,
                          women_floor, floor_type, keeper_scoping,
-                         quota_noun_singular, quota_noun_plural, timezone)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                         quota_noun_singular, quota_noun_plural,
+                         restricting_noun_singular, restricting_noun_plural,
+                         setup_completed_at, timezone)
+       VALUES ($1, $2, NULL, NULL, NULL, NULL, NULL, 'included',
+               NULL, NULL, NULL, NULL, NULL, $3)
        RETURNING ${TEAM_COLUMNS}`,
-      [
-        input.name,
-        input.slug,
-        input.fullSide,
-        input.minToPlay,
-        input.menCeiling,
-        input.womenFloor,
-        input.floorType,
-        input.keeperScoping,
-        input.quotaNounSingular,
-        input.quotaNounPlural,
-        input.timezone,
-      ],
+      [input.name, input.slug, input.timezone],
     );
     const teamRow = teamResult.rows[0]!;
     const captainJoinToken = generateJoinToken();
@@ -141,6 +140,44 @@ export async function createTeam(
   } finally {
     client.release();
   }
+}
+
+export async function isTeamSetupComplete(teamId: number): Promise<boolean> {
+  const { rows } = await pool.query<{ complete: boolean }>(
+    `SELECT setup_completed_at IS NOT NULL AS complete FROM team WHERE id = $1`,
+    [teamId],
+  );
+  return rows[0]?.complete ?? false;
+}
+
+export async function updateTeamRules(
+  teamId: number,
+  input: TeamRulesInput,
+): Promise<Team> {
+  const { rows } = await pool.query<TeamRow>(
+    `UPDATE team
+     SET full_side = $2, min_to_play = $3, men_ceiling = $4,
+         women_floor = $5, floor_type = $6, keeper_scoping = $7,
+         quota_noun_singular = $8, quota_noun_plural = $9,
+         restricting_noun_singular = $10, restricting_noun_plural = $11,
+         setup_completed_at = COALESCE(setup_completed_at, now())
+     WHERE id = $1
+     RETURNING ${TEAM_COLUMNS}`,
+    [
+      teamId,
+      input.fullSide,
+      input.minToPlay,
+      input.menCeiling,
+      input.womenFloor,
+      input.floorType,
+      input.keeperScoping,
+      input.quotaNounSingular,
+      input.quotaNounPlural,
+      input.restrictingNounSingular,
+      input.restrictingNounPlural,
+    ],
+  );
+  return toTeam(rows[0]!);
 }
 
 export async function updateTeamSettings(

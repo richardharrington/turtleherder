@@ -22,11 +22,14 @@ const USAGE = `Usage: pnpm db:create-team -- \\
   [--keeper-scoping included] \\
   [--quota-noun-singular woman] \\
   [--quota-noun-plural women] \\
+  [--restricting-noun-singular man] \\
+  [--restricting-noun-plural men] \\
   --timezone America/New_York \\
   --captain "Alison Bechdel"
 
 --floor-type defaults to play_down when --women-floor is set.
 Quota nouns are required with either gender constraint and omitted without both.
+Restricting nouns default to man/men with --men-ceiling and are omitted without it.
 --keeper-scoping defaults to included.
 Requires DATABASE_URL and APP_ORIGIN (e.g. https://turtleherder.com).`;
 
@@ -54,6 +57,8 @@ function parseCliArgs() {
         "keeper-scoping": { type: "string" },
         "quota-noun-singular": { type: "string" },
         "quota-noun-plural": { type: "string" },
+        "restricting-noun-singular": { type: "string" },
+        "restricting-noun-plural": { type: "string" },
         timezone: { type: "string" },
         captain: { type: "string" },
       },
@@ -77,6 +82,10 @@ const parsed = createTeamInputSchema.safeParse({
   keeperScoping: raw["keeper-scoping"] ?? "included",
   quotaNounSingular: raw["quota-noun-singular"] ?? null,
   quotaNounPlural: raw["quota-noun-plural"] ?? null,
+  restrictingNounSingular: raw["restricting-noun-singular"] ??
+    (raw["men-ceiling"] === undefined ? null : "man"),
+  restrictingNounPlural: raw["restricting-noun-plural"] ??
+    (raw["men-ceiling"] === undefined ? null : "men"),
   timezone: raw.timezone,
   captain: raw.captain,
 });
@@ -101,8 +110,10 @@ try {
   const teamResult = await client.query<{ id: number }>(
     `INSERT INTO team (name, slug, full_side, min_to_play, men_ceiling,
                        women_floor, floor_type, keeper_scoping,
-                       quota_noun_singular, quota_noun_plural, timezone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                       quota_noun_singular, quota_noun_plural,
+                       restricting_noun_singular, restricting_noun_plural,
+                       setup_completed_at, timezone)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), $13)
      RETURNING id`,
     [
       args.name,
@@ -115,6 +126,8 @@ try {
       args.keeperScoping,
       args.quotaNounSingular,
       args.quotaNounPlural,
+      args.restrictingNounSingular,
+      args.restrictingNounPlural,
       args.timezone,
     ],
   );

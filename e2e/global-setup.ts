@@ -37,9 +37,10 @@ export default async function globalSetup(): Promise<void> {
     );
     await client.query(
       `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
-                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+                         floor_type, quota_noun_singular, quota_noun_plural,
+                         setup_completed_at, timezone)
        VALUES ('Testcats', 'testcats', 7, 7, 2, 'play_down',
-               'woman', 'women', 'America/New_York')`,
+               'woman', 'women', now(), 'America/New_York')`,
     );
     await client.query(
       `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
@@ -67,11 +68,12 @@ export default async function globalSetup(): Promise<void> {
     );
     await client.query(
       `INSERT INTO team (name, slug, full_side, min_to_play, women_floor,
-                         floor_type, quota_noun_singular, quota_noun_plural, timezone)
+                         floor_type, quota_noun_singular, quota_noun_plural,
+                         setup_completed_at, timezone)
        VALUES ('Bocce Buddies', 'bocce', 4, 4, NULL, NULL,
-               NULL, NULL, 'America/New_York'),
+               NULL, NULL, now(), 'America/New_York'),
               ('Otters', 'otters', 7, 7, 2, 'play_down',
-               'woman', 'women', 'America/New_York')`,
+               'woman', 'women', now(), 'America/New_York')`,
     );
     await client.query(
       `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)

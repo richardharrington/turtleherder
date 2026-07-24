@@ -149,6 +149,10 @@ beforeAll(async () => {
     [zedId],
   );
 
+  // These SQL fixtures model teams born before the setup lifecycle. Public
+  // signup below deliberately creates its team with this stamp null.
+  await pool.query(`UPDATE team SET setup_completed_at = now()`);
+
   await insertSession("alice-session", playerIds[0]!);
   await insertSession("bob-session", playerIds[1]!);
   await insertSession("zed-session", zedId);
@@ -203,21 +207,13 @@ describe("public team creation and settings", () => {
   const input = {
     name: "Sunset Rovers",
     slug: "sunset-rovers",
-    fullSide: 7,
-    minToPlay: 5,
-    menCeiling: null,
-    womenFloor: null,
-    floorType: null,
-    keeperScoping: "included",
-    quotaNounSingular: null,
-    quotaNounPlural: null,
     timezone: "America/Los_Angeles",
     captain: "Sam Rivera",
     website: "",
   };
   let creatorCookie = "";
 
-  it("creates a valid genderless team, captain, open stint, and signed-in key", async () => {
+  it("creates an in-setup team, captain, open stint, and signed-in key", async () => {
     const res = await jsonRequest("POST", "/api/teams", input, null);
     expect(res.status).toBe(201);
     const body = (await res.json()) as { slug: string; captainJoinUrl: string };
@@ -232,11 +228,14 @@ describe("public team creation and settings", () => {
     expect((await teamRes.json()) as Team).toMatchObject({
       name: "Sunset Rovers",
       slug: "sunset-rovers",
-      fullSide: 7,
-      minToPlay: 5,
+      fullSide: null,
+      minToPlay: null,
       womenFloor: null,
       quotaNounSingular: null,
       quotaNounPlural: null,
+      restrictingNounSingular: null,
+      restrictingNounPlural: null,
+      setupCompletedAt: null,
     });
     const me = await get("/api/teams/sunset-rovers/me", creatorCookie);
     expect(await me.json()).toMatchObject({ name: "Sam Rivera", isCaptain: true });
@@ -247,6 +246,86 @@ describe("public team creation and settings", () => {
        WHERE t.slug = 'sunset-rovers' AND m.left_at IS NULL`,
     );
     expect(stint.rows).toHaveLength(1);
+  });
+
+  it("blocks player links and games until rules are completed, then stamps setup", async () => {
+    const blockedPlayer = await jsonRequest(
+      "POST",
+      "/api/teams/sunset-rovers/players",
+      { name: "Taylor", countsTowardMinimum: false },
+      creatorCookie,
+    );
+    expect(blockedPlayer.status).toBe(409);
+    expect(await blockedPlayer.json()).toEqual({ error: "team setup incomplete" });
+
+    const blockedGame = await jsonRequest(
+      "POST",
+      "/api/teams/sunset-rovers/games",
+      { opponentName: "Moonrise", opponentColor: null, startsAt: "2026-08-01T19:00:00.000Z" },
+      creatorCookie,
+    );
+    expect(blockedGame.status).toBe(409);
+
+    const completed = await jsonRequest(
+      "PUT",
+      "/api/teams/sunset-rovers/rules",
+      {
+        fullSide: 7,
+        minToPlay: 5,
+        menCeiling: null,
+        womenFloor: null,
+        floorType: null,
+        keeperScoping: "included",
+        quotaNounSingular: null,
+        quotaNounPlural: null,
+        restrictingNounSingular: null,
+        restrictingNounPlural: null,
+      },
+      creatorCookie,
+    );
+    expect(completed.status).toBe(200);
+    expect((await completed.json()) as Team).toMatchObject({
+      fullSide: 7,
+      minToPlay: 5,
+      setupCompletedAt: expect.any(String),
+    });
+
+    const player = await jsonRequest(
+      "POST",
+      "/api/teams/sunset-rovers/players",
+      { name: "Taylor", countsTowardMinimum: false },
+      creatorCookie,
+    );
+    expect(player.status).toBe(201);
+  });
+
+  it("stores all four rule-shape fields and both noun pairs", async () => {
+    const updated = await jsonRequest(
+      "PUT",
+      "/api/teams/sunset-rovers/rules",
+      {
+        fullSide: 7,
+        minToPlay: 5,
+        menCeiling: 5,
+        womenFloor: 1,
+        floorType: "forfeit",
+        keeperScoping: "excluded",
+        quotaNounSingular: "woman",
+        quotaNounPlural: "women",
+        restrictingNounSingular: "man",
+        restrictingNounPlural: "men",
+      },
+      creatorCookie,
+    );
+    expect(updated.status).toBe(200);
+    expect((await updated.json()) as Team).toMatchObject({
+      menCeiling: 5,
+      womenFloor: 1,
+      floorType: "forfeit",
+      keeperScoping: "excluded",
+      restrictingNounSingular: "man",
+      restrictingNounPlural: "men",
+    });
   });
 
   it("adds another created team to an existing keyring", async () => {
@@ -312,6 +391,25 @@ describe("public team creation and settings", () => {
       BOB,
     );
     expect(forbidden.status).toBe(403);
+
+    const forbiddenRules = await jsonRequest(
+      "PUT",
+      "/api/teams/testcats/rules",
+      {
+        fullSide: 7,
+        minToPlay: 5,
+        menCeiling: null,
+        womenFloor: null,
+        floorType: null,
+        keeperScoping: "included",
+        quotaNounSingular: null,
+        quotaNounPlural: null,
+        restrictingNounSingular: null,
+        restrictingNounPlural: null,
+      },
+      BOB,
+    );
+    expect(forbiddenRules.status).toBe(403);
   });
 });
 
@@ -859,6 +957,7 @@ describe("roster history", () => {
        RETURNING id`,
     );
     const teamId = team.rows[0]!.id;
+    await pool.query(`UPDATE team SET setup_completed_at = now() WHERE id = $1`, [teamId]);
     const players = await pool.query<{ id: number }>(
       `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
        VALUES ($1, 'Ann', true, false, 'ann-token'),
@@ -1124,6 +1223,7 @@ describe("captain guards and purge", () => {
        RETURNING id`,
     );
     teamId = team.rows[0]!.id;
+    await pool.query(`UPDATE team SET setup_completed_at = now() WHERE id = $1`, [teamId]);
     const players = await pool.query<{ id: number }>(
       `INSERT INTO player (team_id, name, counts_toward_minimum, is_captain, join_token)
        VALUES ($1, 'Priya', true, true, 'priya-token'),

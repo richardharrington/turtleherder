@@ -13,6 +13,9 @@ const team = {
   keeperScoping: "included" as const,
   quotaNounSingular: "woman",
   quotaNounPlural: "women",
+  restrictingNounSingular: null,
+  restrictingNounPlural: null,
+  setupCompletedAt: "2026-07-24T12:00:00.000Z",
   timezone: "America/New_York",
 };
 
@@ -34,6 +37,8 @@ describe("teamSchema coed rules", () => {
         menCeiling: 5,
         womenFloor: null,
         floorType: null,
+        restrictingNounSingular: "man",
+        restrictingNounPlural: "men",
       }).success,
     ).toBe(true);
   });
@@ -64,6 +69,8 @@ const creation = {
   keeperScoping: "included" as const,
   quotaNounSingular: null,
   quotaNounPlural: null,
+  restrictingNounSingular: null,
+  restrictingNounPlural: null,
   timezone: "America/New_York",
   captain: "Alison Bechdel",
   website: "",
@@ -78,6 +85,8 @@ describe("createTeamInputSchema", () => {
         menCeiling: 5,
         quotaNounSingular: "woman",
         quotaNounPlural: "women",
+        restrictingNounSingular: "man",
+        restrictingNounPlural: "men",
       }).success,
     ).toBe(true);
     expect(
