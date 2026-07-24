@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { Me, SessionTeam, Team } from "@turtleherder/shared";
+import type { Me, ReadyTeam, SessionTeam, Team } from "@turtleherder/shared";
 import {
   CalendarDays,
   ChevronDown,
@@ -10,7 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useParams } from "react-router";
+import { Link, Navigate, NavLink, Outlet, useLocation, useParams } from "react-router";
 import {
   fetchMe,
   fetchSessionTeams,
@@ -21,7 +21,7 @@ import styles from "./TeamLayout.module.css";
 
 // What every team page receives from the layout.
 export interface TeamOutletContext {
-  team: Team;
+  team: ReadyTeam;
   me: Me;
 }
 
@@ -205,7 +205,13 @@ export function TeamLayout() {
     return <p className={styles.message}>Something went wrong.</p>;
   }
 
-  const team = teamQuery.data;
+  const loadedTeam = teamQuery.data;
+  if (loadedTeam.setupCompletedAt === null) {
+    return <Navigate to={`/${loadedTeam.slug}/setup`} replace />;
+  }
+  // setupCompletedAt is stamped in the same update that stores both format
+  // values; the database and shared schema enforce that invariant.
+  const team = loadedTeam as ReadyTeam;
   const me = meQuery.data;
   const sessionTeams =
     sessionTeamsQuery.data && sessionTeamsQuery.data.length > 0

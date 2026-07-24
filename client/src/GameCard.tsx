@@ -8,7 +8,7 @@ import {
   type AttendanceStatus,
   type GameWithAttendance,
   type PlayerGameStatus,
-  type Team,
+  type ReadyTeam,
 } from "@turtleherder/shared";
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useAttendanceMutation } from "./attendance.js";
@@ -50,7 +50,7 @@ export function confirmedPhrase(count: number): string {
 function PlayerRow({ player, game, team, meId, past, locked, open, onOpen, onCollapse }: {
   player: PlayerGameStatus;
   game: GameWithAttendance;
-  team: Team;
+  team: ReadyTeam;
   meId: number;
   past: boolean;
   locked: boolean;
@@ -117,7 +117,7 @@ function Report({ sentences }: { sentences: string[] }) {
 
 export function GameCard({ game, team, meId, openRow, onOpenRow }: {
   game: GameWithAttendance;
-  team: Team;
+  team: ReadyTeam;
   meId: number;
   openRow: string | null;
   onOpenRow: Dispatch<SetStateAction<string | null>>;

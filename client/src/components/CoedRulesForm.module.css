@@ -1,0 +1,137 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.section {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.section:last-of-type {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.section h2 {
+  margin-bottom: 14px;
+}
+.section h3 {
+  margin: 0 0 12px;
+}
+.formatFields {
+  display: grid;
+  gap: 16px;
+}
+.formatFields label,
+.nouns label,
+.restrictingFields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.formatFields input[type="number"] {
+  width: 100%;
+}
+.form input[type="number"] {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.form input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.formatFields small,
+.nouns small,
+.restrictingFields small {
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+.yesNo {
+  display: flex;
+  gap: 24px;
+}
+.radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 400;
+  cursor: pointer;
+}
+.radio > input[type="radio"] {
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  flex: none;
+  accent-color: var(--green);
+}
+.radio > span {
+  line-height: 24px;
+}
+.revealed {
+  padding-top: 18px;
+}
+.shapes {
+  display: grid;
+  gap: 10px;
+}
+.shapes .radio {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-dim);
+}
+.shapes input[type="number"] {
+  display: inline-block;
+  width: 62px;
+  min-height: 36px;
+  height: 36px;
+  margin: -6px 3px;
+  padding: 4px 8px;
+}
+.nestedQuestion,
+.nouns {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.keeperCounts {
+  padding: 14px 0 0 32px;
+}
+.nouns {
+  display: grid;
+  gap: 14px;
+}
+.restrictingFields {
+  display: grid;
+  gap: 14px;
+  padding-top: 4px;
+}
+.error {
+  margin: 6px 0 0;
+  color: var(--error) !important;
+  font-size: 13px;
+  font-weight: 400;
+}
+.submit {
+  width: 100%;
+}
+@media (min-width: 640px) {
+  .formatFields {
+    grid-template-columns: 1fr 1fr;
+  }
+  .nouns,
+  .restrictingFields {
+    grid-template-columns: minmax(0, 2fr) minmax(120px, 1fr);
+  }
+  .nouns > .error,
+  .restrictingFields > .error {
+    grid-column: 1 / -1;
+  }
+}

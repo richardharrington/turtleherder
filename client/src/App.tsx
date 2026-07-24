@@ -6,6 +6,7 @@ import { ManageAccessPage } from "./pages/ManageAccessPage.js";
 import { PlayersPage } from "./pages/PlayersPage.js";
 import { SchedulePage } from "./pages/SchedulePage.js";
 import { TeamSettingsPage } from "./pages/TeamSettingsPage.js";
+import { TeamSetupPage } from "./pages/TeamSetupPage.js";
 import { WallPage } from "./pages/WallPage.js";
 import { TeamLayout } from "./TeamLayout.js";
 
@@ -24,6 +25,10 @@ export const routes: RouteObject[] = [
   {
     path: "/create",
     element: <CreateTeamPage />,
+  },
+  {
+    path: "/:teamSlug/setup",
+    element: <TeamSetupPage />,
   },
   {
     path: "/:teamSlug",

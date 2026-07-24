@@ -1,7 +1,7 @@
 import type {
   AttendanceStatus,
-  CreateTeamInput,
   CreateTeamResult,
+  PublicCreateTeamInput,
   FormerPlayer,
   Game,
   GameInput,
@@ -12,6 +12,7 @@ import type {
   PlayerInput,
   SessionTeam,
   Team,
+  TeamRulesInput,
   TeamSettingsInput,
 } from "@turtleherder/shared";
 
@@ -56,7 +57,7 @@ function teamUrl(slug: string): string {
 }
 
 export async function createTeam(
-  input: CreateTeamInput,
+  input: PublicCreateTeamInput,
 ): Promise<CreateTeamResult> {
   return toJson(
     await fetch("/api/teams", jsonInit("POST", input)),
@@ -75,6 +76,16 @@ export async function updateTeamSettings(
   return toJson(
     await fetch(`${teamUrl(slug)}/settings`, jsonInit("PUT", input)),
     "update team settings",
+  );
+}
+
+export async function updateTeamRules(
+  slug: string,
+  input: TeamRulesInput,
+): Promise<Team> {
+  return toJson(
+    await fetch(`${teamUrl(slug)}/rules`, jsonInit("PUT", input)),
+    "update team rules",
   );
 }
 

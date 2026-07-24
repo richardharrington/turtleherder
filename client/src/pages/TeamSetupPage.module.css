@@ -1,0 +1,60 @@
+.page {
+  min-height: 100vh;
+  padding: 24px 16px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.card {
+  width: min(100%, 720px);
+  padding: 28px 22px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.wordmark {
+  margin: 0 0 24px;
+  color: var(--green-dark);
+  font-size: 20px;
+  font-weight: 800;
+}
+.saveCallout {
+  margin: 24px 0 30px;
+  padding: 20px;
+  border: 2px solid var(--green);
+  border-radius: var(--radius);
+  background: var(--surface-dim);
+}
+.saveCallout h2 {
+  margin-bottom: 8px;
+}
+.saveCallout p {
+  margin: 0 0 16px;
+}
+.linkRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.linkRow code {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  word-break: break-all;
+  user-select: all;
+}
+.message {
+  margin: 40px auto;
+  width: fit-content;
+}
+@media (min-width: 640px) {
+  .page { padding-top: 48px; }
+  .card { padding: 36px; }
+  .linkRow {
+    flex-direction: row;
+    align-items: center;
+  }
+  .linkRow code { flex: 1; }
+}

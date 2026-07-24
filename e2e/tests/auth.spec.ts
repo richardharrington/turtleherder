@@ -19,22 +19,41 @@ test("the public landing serves strangers and invited teammates together", async
   );
 });
 
-test("self-serve creation signs in the captain and shows a recovery link", async ({ page, context }) => {
+test("self-serve creation signs in the captain and completes guided setup", async ({ page, context }) => {
   await page.goto("/");
   await page.getByRole("link", { name: "Create a team" }).click();
   await page.getByLabel("Team name").fill("Night Owls");
   await expect(page.getByLabel("Team URL")).toHaveValue("night-owls");
   await page.getByLabel("Your name").fill("Nora Captain");
-  await expect(page.getByLabel("Full side")).toHaveValue("7");
-  await expect(page.getByLabel("Minimum to play")).toHaveValue("5");
   await page.getByRole("button", { name: "Create team" }).click();
 
-  await expect(page.getByRole("heading", { name: "Your team is ready" })).toBeVisible();
+  await expect(page).toHaveURL("/night-owls/setup");
+  await expect(page.getByRole("heading", { name: "Set up Night Owls" })).toBeVisible();
   await expect(page.locator("code")).toContainText("/join/");
-  await expect(page.locator("body")).toContainText("Bookmark it or email it to yourself");
+  await expect(page.locator("body")).toContainText("bookmark it, or email it to yourself");
   expect((await context.cookies()).find((cookie) => cookie.name === "th_session")).toBeDefined();
 
-  await page.getByRole("link", { name: "Go to your team" }).click();
+  // Format suggestions are placeholders, not silently stored defaults.
+  await expect(page.getByLabel("Players per side")).toHaveValue("");
+  await expect(page.getByLabel("Players per side")).toHaveAttribute("placeholder", "7");
+  await expect(page.getByLabel("Fewest to play")).toHaveValue("");
+  await page.getByLabel("Players per side").fill("7");
+  await page.getByLabel("Fewest to play").fill("5");
+
+  await page.locator('input[name="gender-rule"][value="yes"]').check();
+  await page.locator('input[name="rule-shape"][value="cap-and-floor"]').check();
+  await page.getByLabel("Maximum restricted players for combined rule").fill("5");
+  await page.getByLabel("Minimum protected players for combined rule").fill("1");
+  await page.locator('input[name="has-goalkeeper"][value="yes"]').check();
+  await page.locator('input[name="keeper-counts"][value="no"]').check();
+  await expect(page.getByLabel("Category we’re protecting")).toHaveValue("women");
+  await page.getByLabel("Category we’re protecting").fill("people");
+  await expect(page.getByLabel("Singular").first()).toHaveValue("person");
+  await page.getByLabel("Category we’re protecting").fill("women");
+  await expect(page.getByLabel("Category we’re restricting")).toHaveValue("men");
+  await page.getByRole("button", { name: "Finish setup" }).click();
+
+  await expect(page).toHaveURL("/night-owls");
   await expect(page.getByRole("heading", { name: "Night Owls Schedule" })).toBeVisible();
   await page.getByRole("link", { name: "Settings" }).click();
   await page.getByLabel("Team name").fill("Night Owl United");
@@ -42,6 +61,7 @@ test("self-serve creation signs in the captain and shows a recovery link", async
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("button", { name: "Night Owl United" })).toBeVisible();
   await expect(page.locator("body")).toContainText("/night-owls");
+  await expect(page.getByLabel("Maximum restricted players for combined rule")).toHaveValue("5");
 });
 
 test("a signed-out visitor at a team URL is bounced to the wall", async ({
