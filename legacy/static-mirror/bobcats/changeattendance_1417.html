@@ -1,0 +1,43 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Bobcats</title>
+<meta http-equiv="content-type" content="text/html; charset=iso-8859-1" />
+<link rel="stylesheet" type="text/css" href="css/main.css" />
+</head>
+<body class="oneColElsCtr">
+
+<div id="container">
+  <div id="mainContent">
+    <div class="style1">
+    <h1>Change Attendance Status</h1>
+
+<p class="link-row"><span class ="style1"><a href="index.html">home</a> | <a href="players.html">manage roster</a> | <a href="games.html">manage games</a></p>
+
+
+
+
+<form action="index.html" method="get" onsubmit="return false">
+<p>Sarah, will you be coming to the game on Tuesday, February 8, 2011 against Polyanna at 7:10 am?</p>
+<input type="hidden" name="attendance_id" value="1417">
+<input type="hidden" name="has_changed" value="1">
+<input name="" type="text" value="" style="display:none">
+<label><input type="radio" name="attendance_status" value="yes"
+       >Yes<br /></label>
+<label><input type="radio" name="attendance_status" value="no"
+       >No<br /></label>
+<label><input type="radio" name="attendance_status" value="not_sure"
+       >I'm not sure<br /></label>
+                <!-- Meaning, if they've previously indicate uncertainty, the default is "not_sure," -->
+                <!-- but if they haven't responded yet, it's "no_response," and no radio button is checked.  -->
+<br />
+<input type="submit" value="SUBMIT" />
+</form>
+<br />
+
+
+</div>
+</div>
+</div>
+</body>
+</html>

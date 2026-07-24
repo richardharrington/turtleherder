@@ -1,0 +1,50 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Bobcats</title>
+<meta http-equiv="content-type" content="text/html; charset=iso-8859-1" />
+<link rel="stylesheet" type="text/css" href="css/main.css" />
+<script type="text/javascript" src="js/main.js"></script>
+</head>
+<body class="oneColElsCtr">
+
+<div id="container">
+  <div id="mainContent">
+    <div class="style1">
+
+<h1>Edit Player</h1>
+
+<p class="link-row"><span class ="style1"><a href="index.html">home</a> | <a href="players.html">manage roster</a> | <a href="games.html">manage games</a></p>
+
+
+
+  <form name="form1" action="addplayer.html" method="post" onsubmit="return false">
+  <p>Update player info:</p>
+
+  <p class="hiding" id="nameError"><span class="error">Please type in a name.</span></p><br />
+
+  <label>Name: <input type="text" name="name" value="Russ" /></label><br /><br />
+
+  <p class="hiding" id="genderError"><span class="error">Please select a gender.</span></p><br />
+
+  <label><input type="radio" name="gender" value="f"  />female</label><br />
+  <label><input type="radio" name="gender" value="m" checked />male</label>
+   <label><input type="hidden" name="id" value="37" /></label>
+    
+  <br /><br />
+  <input type="submit" name="submit" value="SUBMIT" onClick="return validatePlayer()" />
+  </form>
+
+
+  
+
+
+<br />
+</div>
+</div>
+</div>
+
+
+
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Bobcats</title>
+<meta http-equiv="content-type" content="text/html; charset=iso-8859-1" />
+<link rel="stylesheet" type="text/css" href="css/main.css" />
+<script type="text/javascript" src="js/main.js"></script>
+</head>
+<body class="oneColElsCtr">
+
+<div id="container">
+  <div id="mainContent">
+    <div class="style1">
+
+
+<h1>Edit Game</h1>
+
+<p class="link-row"><span class ="style1"><a href="index.html">home</a> | <a href="players.html">manage roster</a> | <a href="games.html">manage games</a></p>
+
+
+
+  <form name="form1" action="addgame.html" method="post" onsubmit="return false">
+  <p>Update game info:</p>
+
+  <p class="hiding" id="nameError"><span class="error">Please type in a name for the opposing team.</span></p><br />
+
+  <label>Opposing team name: <input type="text" name="name"
+      value="Squids" /></label><br /><br />
+  <label>Opposing team color (optional): <input type="text" name="color"
+      value="white" /></label><br /><br />
+
+  <p class="hiding" id="dateError"><span class="error">Please select a valid date.</span></p><br />
+
+  <strong>Date:</strong>&nbsp;&nbsp;month
+  <label><select name="month">
+    <option value="1">Jan</option><br /><option value="2">Feb</option><br /><option value="3">Mar</option><br /><option value="4">Apr</option><br /><option value="5">May</option><br /><option value="6">Jun</option><br /><option value="7">Jul</option><br /><option value="8">Aug</option><br /><option value="9">Sep</option><br /><option value="10">Oct</option><br /><option value="11" selected>Nov</option><br /><option value="12">Dec</option><br />  </select></label>&nbsp;&nbsp;day
+  <label><select name="day">
+    <option value="1">1</option><br /><option value="2">2</option><br /><option value="3">3</option><br /><option value="4">4</option><br /><option value="5">5</option><br /><option value="6">6</option><br /><option value="7" selected>7</option><br /><option value="8">8</option><br /><option value="9">9</option><br /><option value="10">10</option><br /><option value="11">11</option><br /><option value="12">12</option><br /><option value="13">13</option><br /><option value="14">14</option><br /><option value="15">15</option><br /><option value="16">16</option><br /><option value="17">17</option><br /><option value="18">18</option><br /><option value="19">19</option><br /><option value="20">20</option><br /><option value="21">21</option><br /><option value="22">22</option><br /><option value="23">23</option><br /><option value="24">24</option><br /><option value="25">25</option><br /><option value="26">26</option><br /><option value="27">27</option><br /><option value="28">28</option><br /><option value="29">29</option><br /><option value="30">30</option><br /><option value="31">31</option><br />  </select></label>&nbsp;&nbsp;year
+  <label><select name="year">
+    <option value="2026">2026</option><br /><option value="2027">2027</option><br /><option value="2028">2028</option><br />  </select></label>
+  <br />
+  <br />
+
+  <p class="hiding" id="timeError"><span class="error">Please select a time (make sure to check am or pm, too).</span></p><br />
+
+  <strong>Time:</strong>&nbsp;&nbsp;hour
+  <label><select name="hour">
+    <option value="1">1</option><br /><option value="2">2</option><br /><option value="3">3</option><br /><option value="4">4</option><br /><option value="5">5</option><br /><option value="6">6</option><br /><option value="7">7</option><br /><option value="8">8</option><br /><option value="9" selected>9</option><br /><option value="10">10</option><br /><option value="11">11</option><br /><option value="12">12</option><br />  </select></label>&nbsp;&nbsp;minute
+  <label><select name="minute">
+    <option value="0">00</option><br /><option value="5">05</option><br /><option value="10">10</option><br /><option value="15">15</option><br /><option value="20">20</option><br /><option value="25" selected>25</option><br /><option value="30">30</option><br /><option value="35">35</option><br /><option value="40">40</option><br /><option value="45">45</option><br /><option value="50">50</option><br /><option value="55">55</option><br />  </select></label>&nbsp;
+  <label><select name="ampm" size="2">
+    <option value="am">am</option><br /><option value="pm" selected>pm</option><br />  </select></label><br /><br />
+
+      <label><input type="hidden" name="id" value="60" /></label>
+    
+  <input type="submit" name="submit" value="SUBMIT" onClick="return validateGame(document.form1)" />
+
+
+
+  </form>
+
+
+<br />
+</div>
+</div>
+</div>
+
+
+
+</body>
+</html>
