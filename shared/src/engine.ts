@@ -4,7 +4,7 @@ export interface RosterRules {
   menCeiling: number | null;
   womenFloor: number | null;
   floorType: "play_down" | "forfeit" | null;
-  keeperScoping: "included" | "excluded";
+  keeperScoping: "none" | "included" | "excluded";
 }
 
 export interface Turnout {

@@ -12,7 +12,7 @@ export const teamSchema = z
     menCeiling: z.number().int().nullable(),
     womenFloor: z.number().int().nullable(),
     floorType: z.enum(["play_down", "forfeit"]).nullable(),
-    keeperScoping: z.enum(["included", "excluded"]),
+    keeperScoping: z.enum(["none", "included", "excluded"]),
     // The noun used by the roster report, e.g. "woman"/"women". Both forms
     // are stored because plurals aren't derivable (woman -> women). A team
     // without either gender constraint has neither noun.
@@ -106,7 +106,7 @@ const teamRuleFields = {
   menCeiling: nullableNonnegativeInt,
   womenFloor: nullableNonnegativeInt,
   floorType: z.enum(["play_down", "forfeit"]).nullable(),
-  keeperScoping: z.enum(["included", "excluded"]),
+  keeperScoping: z.enum(["none", "included", "excluded"]),
   quotaNounSingular: nonemptyNullableString,
   quotaNounPlural: nonemptyNullableString,
   restrictingNounSingular: nonemptyNullableString,

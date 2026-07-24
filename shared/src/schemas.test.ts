@@ -23,6 +23,9 @@ describe("teamSchema coed rules", () => {
   it("accepts genderless, floor, and ceiling-only teams", () => {
     expect(teamSchema.safeParse(team).success).toBe(true);
     expect(
+      teamSchema.safeParse({ ...team, keeperScoping: "none" }).success,
+    ).toBe(true);
+    expect(
       teamSchema.safeParse({
         ...team,
         womenFloor: null,
@@ -79,6 +82,12 @@ const creation = {
 describe("createTeamInputSchema", () => {
   it("accepts genderless and ceiling-only teams and enforces side sizes", () => {
     expect(createTeamInputSchema.safeParse(creation).success).toBe(true);
+    expect(
+      createTeamInputSchema.safeParse({
+        ...creation,
+        keeperScoping: "none",
+      }).success,
+    ).toBe(true);
     expect(
       createTeamInputSchema.safeParse({
         ...creation,

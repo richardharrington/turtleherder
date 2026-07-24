@@ -20,7 +20,7 @@ interface TeamRow {
   men_ceiling: number | null;
   women_floor: number | null;
   floor_type: "play_down" | "forfeit" | null;
-  keeper_scoping: "included" | "excluded";
+  keeper_scoping: "none" | "included" | "excluded";
   quota_noun_singular: string | null;
   quota_noun_plural: string | null;
   restricting_noun_singular: string | null;

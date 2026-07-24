@@ -19,7 +19,7 @@ const USAGE = `Usage: pnpm db:create-team -- \\
   [--women-floor 2] \\
   [--men-ceiling 5] \\
   [--floor-type play_down] \\
-  [--keeper-scoping included] \\
+  [--keeper-scoping included|excluded|none] \\
   [--quota-noun-singular woman] \\
   [--quota-noun-plural women] \\
   [--restricting-noun-singular man] \\

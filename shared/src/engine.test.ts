@@ -241,6 +241,20 @@ describe("rosterStatus", () => {
     expectStatus(rules, turnout, expected);
   });
 
+  it("treats no goalkeeper exactly like a keeper that counts", () => {
+    const included: RosterRules = { ...nsc, keeperScoping: "included" };
+    const none: RosterRules = { ...nsc, keeperScoping: "none" };
+    for (const turnout of [
+      { men: 8, women: 0 },
+      { men: 4, women: 3 },
+      { men: 3, women: 1 },
+    ]) {
+      expect(rosterStatus(none, turnout)).toEqual(
+        rosterStatus(included, turnout),
+      );
+    }
+  });
+
   it("does not show a gender constraint for a genuinely genderless ruleset", () => {
     expect(
       status(

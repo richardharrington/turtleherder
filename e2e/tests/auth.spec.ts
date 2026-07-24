@@ -62,6 +62,34 @@ test("self-serve creation signs in the captain and completes guided setup", asyn
   await expect(page.getByRole("button", { name: "Night Owl United" })).toBeVisible();
   await expect(page.locator("body")).toContainText("/night-owls");
   await expect(page.getByLabel("Maximum restricted players for combined rule")).toHaveValue("5");
+
+  // Every stored keeper value reconstructs the two questions faithfully.
+  await expect(page.locator('input[name="has-goalkeeper"][value="yes"]')).toBeChecked();
+  await expect(page.locator('input[name="keeper-counts"][value="no"]')).toBeChecked();
+
+  await page.locator('input[name="keeper-counts"][value="yes"]').check();
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith("/api/teams/night-owls/rules") &&
+      response.request().method() === "PUT",
+    ),
+    page.getByRole("button", { name: "Save rules" }).click(),
+  ]);
+  await page.reload();
+  await expect(page.locator('input[name="has-goalkeeper"][value="yes"]')).toBeChecked();
+  await expect(page.locator('input[name="keeper-counts"][value="yes"]')).toBeChecked();
+
+  await page.locator('input[name="has-goalkeeper"][value="no"]').check();
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().endsWith("/api/teams/night-owls/rules") &&
+      response.request().method() === "PUT",
+    ),
+    page.getByRole("button", { name: "Save rules" }).click(),
+  ]);
+  await page.reload();
+  await expect(page.locator('input[name="has-goalkeeper"][value="no"]')).toBeChecked();
+  await expect(page.locator('input[name="keeper-counts"]')).toHaveCount(0);
 });
 
 test("a signed-out visitor at a team URL is bounced to the wall", async ({

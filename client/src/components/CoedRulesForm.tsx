@@ -82,10 +82,12 @@ export function CoedRulesForm({
   const [restrictingPlural, setRestrictingPlural] = useState(team.restrictingNounPlural ?? "men");
   const [restrictingSingular, setRestrictingSingular] = useState(team.restrictingNounSingular ?? "man");
   const [hasGoalkeeper, setHasGoalkeeper] = useState<boolean | null>(
-    team.keeperScoping === "excluded" ? true : team.setupCompletedAt === null ? null : false,
+    team.setupCompletedAt === null ? null : team.keeperScoping !== "none",
   );
   const [keeperCounts, setKeeperCounts] = useState<boolean | null>(
-    team.keeperScoping === "excluded" ? false : team.setupCompletedAt === null ? null : true,
+    team.setupCompletedAt === null || team.keeperScoping === "none"
+      ? null
+      : team.keeperScoping === "included",
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -140,8 +142,12 @@ export function CoedRulesForm({
             ? "play_down"
             : "forfeit",
       keeperScoping:
-        hasGenderRule && capShape && hasGoalkeeper === true && keeperCounts === false
-          ? "excluded"
+        hasGenderRule && capShape
+          ? hasGoalkeeper === false
+            ? "none"
+            : keeperCounts === false
+              ? "excluded"
+              : "included"
           : "included",
       quotaNounSingular: hasGenderRule ? protectedSingular : null,
       quotaNounPlural: hasGenderRule ? protectedPlural : null,

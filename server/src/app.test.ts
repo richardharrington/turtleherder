@@ -326,6 +326,28 @@ describe("public team creation and settings", () => {
       restrictingNounSingular: "man",
       restrictingNounPlural: "men",
     });
+
+    const noKeeper = await jsonRequest(
+      "PUT",
+      "/api/teams/sunset-rovers/rules",
+      {
+        fullSide: 7,
+        minToPlay: 5,
+        menCeiling: 5,
+        womenFloor: 1,
+        floorType: "forfeit",
+        keeperScoping: "none",
+        quotaNounSingular: "woman",
+        quotaNounPlural: "women",
+        restrictingNounSingular: "man",
+        restrictingNounPlural: "men",
+      },
+      creatorCookie,
+    );
+    expect(noKeeper.status).toBe(200);
+    expect((await noKeeper.json()) as Team).toMatchObject({
+      keeperScoping: "none",
+    });
   });
 
   it("adds another created team to an existing keyring", async () => {
