@@ -1,4 +1,4 @@
-/* Initial schema: team, player, game, attendance. See DESIGN.md. */
+/* Initial schema: team, player, game, attendance. See ai-specs/DESIGN.md. */
 
 exports.up = (pgm) => {
   pgm.createType("attendance_status", ["yes", "no", "not_sure"]);

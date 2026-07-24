@@ -287,7 +287,7 @@ export const INVALID_JOIN_REDIRECT = "/?join=invalid";
 // Where GET /join/<token> sends a *valid* token whose player has no open
 // roster stint — they've been removed from the team. Deliberately distinct
 // from the invalid redirect (a reasoned exception to the uniform-401
-// contract; see DESIGN.md's Roster history section): only the token's
+// contract; see ai-specs/DESIGN.md's Roster history section): only the token's
 // rightful holder can ever see it, and the invalid-link copy ("ask your
 // captain for a fresh one") is advice that cannot work when the gate is the
 // stint, not the token. The server appends &team=<name> so the wall can say

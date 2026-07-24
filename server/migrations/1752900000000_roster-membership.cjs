@@ -1,4 +1,4 @@
-/* Roster history: membership stints. See DESIGN.md's Roster history section.
+/* Roster history: membership stints. See ai-specs/DESIGN.md's Roster history section.
  *
  * A game's roster is derived from the stints covering its starts_at, so past
  * games stop rendering against today's roster. No team_id here — player.team_id

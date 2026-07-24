@@ -1,6 +1,6 @@
 // Past/locked determination for a game, shared so the server (which
 // enforces the lock) and the client (which renders from it) agree on the
-// numbers. See DESIGN.md's Roster history section.
+// numbers. See ai-specs/DESIGN.md's Roster history section.
 
 // Attendance writes are rejected once a game started this long ago. A grace
 // period rather than starts_at itself, so someone who marked "not sure" and

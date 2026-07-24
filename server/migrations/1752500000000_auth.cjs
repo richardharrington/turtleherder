@@ -1,4 +1,4 @@
-/* Auth: join token + captain flag on player, session table. See DESIGN.md. */
+/* Auth: join token + captain flag on player, session table. See ai-specs/DESIGN.md. */
 
 exports.up = (pgm) => {
   // Only used to backfill tokens for pre-auth rows; the app generates

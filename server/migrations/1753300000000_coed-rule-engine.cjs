@@ -1,5 +1,5 @@
 /* Coed rule engine: split full strength from the forfeit line and store the
- * flat gender/keeper knobs designed in DESIGN.md. Legacy teams backfill to
+ * flat gender/keeper knobs designed in ai-specs/DESIGN.md. Legacy teams backfill to
  * their exact no-shorthanded behavior before the old columns are removed.
  */
 

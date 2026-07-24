@@ -1,4 +1,4 @@
-/* Multi-team keyring: a session holds one player key per team. See DESIGN.md. */
+/* Multi-team keyring: a session holds one player key per team. See ai-specs/DESIGN.md. */
 
 exports.up = (pgm) => {
   // The redundant pair is the target of session_player's composite foreign

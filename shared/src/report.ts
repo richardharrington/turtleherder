@@ -34,7 +34,7 @@ function initialCap(text: string): string {
 }
 
 // The report for a game already played: past tense, and no quota clause at
-// all — the quota flag is only ever read for upcoming games (see DESIGN.md's
+// all — the quota flag is only ever read for upcoming games (see ai-specs/DESIGN.md's
 // Roster history section). "Confirmed" is doing deliberate work: the
 // attendance lock means the sentence reports what was *recorded*, not who
 // was there.

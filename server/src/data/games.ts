@@ -63,7 +63,7 @@ function assemble(
 
 // A game's roster is the players whose membership stint covers starts_at —
 // strictly this interval predicate, never a union with attendance (see
-// DESIGN.md's Roster history section). EXISTS rather than a join so a
+// ai-specs/DESIGN.md's Roster history section). EXISTS rather than a join so a
 // player with overlapping stints (unreachable, but the query shouldn't
 // depend on that) still yields one row. The LEFT JOIN yields status null
 // for players who haven't responded.

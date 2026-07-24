@@ -1,7 +1,7 @@
 # Turtleherder
 
 > **Rewrite in progress (2026):** this app is being rebuilt as a React + Node
-> (TypeScript) monorepo backed by Postgres. See [DESIGN.md](DESIGN.md) for the
+> (TypeScript) monorepo backed by Postgres. See [DESIGN.md](ai-specs/DESIGN.md) for the
 > full design. The original PHP app lives in [`legacy/`](legacy/) as the
 > reference spec. Development setup:
 >

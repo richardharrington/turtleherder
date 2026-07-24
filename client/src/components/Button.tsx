@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 import { Link } from "react-router";
 import styles from "./Button.module.css";
 
-// The design system's three button variants (REDESIGN.md). Button renders
+// The design system's three button variants (ai-specs/REDESIGN.md). Button renders
 // a real <button>; ButtonLink is the same look on a router <Link> for
 // button-shaped navigation ("Add new player").
 
