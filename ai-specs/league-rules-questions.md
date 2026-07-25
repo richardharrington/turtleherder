@@ -232,6 +232,16 @@ Rules 7v7")*:
    a male keeper is one of the five men, and a woman/NB keeper satisfies the
    minimum? (No keeper exception, unlike some leagues.)
 
+**Resolved (Volo reply, see Emails sent):** both confirmed. (1) "women" is just
+short for "women/non-binary" — one bucket, no separate rule sets — so a
+non-binary player alone satisfies the floor. This is the two-category assumption
+**confirmed against its one live test**: no league splits the protected bucket.
+(2) The keeper is **not** special — the on-field limits (5 men max, 1 woman/NB
+min) count all seven including the keeper, so a female/NB keeper counts toward
+the minimum. Volo is `keeperScoping = included`. Fully pinned; no open items.
+(Their reply also mentioned Volo's own app has RSVP + team chat — noted, not
+relevant to the rules.)
+
 
 ---
 
@@ -341,7 +351,16 @@ Richard Harrington
 
 #### response
 
-TBD
+```
+1. Thank you for pointing that out! I will update those so it correctly says
+women/non-binary players. We don't have two different sets of rules.
+
+2. The number on the field (ex 7v7) includes the goalkeeper! If the keeper is
+female/non-binary, it does count toward the minimum gender requirements.
+
+Our Volo app also has a RSVP and team chat feature to help you communicate with
+your team!
+```
 
 
 ---
@@ -397,7 +416,7 @@ in.
 | NSC | 4 | 5 (4 outfield + male GK) | none | play-down | excluded, any gender | none |
 | NY Coed | 5 (forfeit ≤4) | none | 2 (Pier 40: 3) | **PENDING** | excluded | floorType + GK gender |
 | Urban | 5 | (5, via play-down) | 2 | play-down 1/missing | excluded, any gender | none |
-| Volo | 5 | 5 | 1 | **forfeit (hard)** | included | NB-counts + GK confirm |
+| Volo | 5 | 5 | 1 | **forfeit (hard)** | included, any gender | none |
 
 ### Cross-cutting decisions
 
@@ -414,9 +433,11 @@ in.
   floored/protected one (`womenFloor`). What the protected bucket is *called*
   ("women," "females," "women/non-binary," "non-male") and how it's displayed
   is a copy/vocabulary question to settle later — not a structural concern.
-  The one place this assumption is under test is Volo's "1 woman" vs "1
-  woman/non-binary" wording: if a non-binary player alone did *not* satisfy the
-  floor, Volo would be the first three-category system. We expect it counts.
+  The one place this assumption was under test — Volo's "1 woman" vs "1
+  woman/non-binary" wording — is now **confirmed**: Volo replied that "women" is
+  just short for "women/non-binary," one bucket with no separate rule sets, so a
+  non-binary player alone satisfies the floor. No league splits the protected
+  bucket; two categories holds.
 - **Voluntary short-siding is out of scope.** The app forecasts whether a
   turnout can field a legal team; nobody benches available players.
 
@@ -426,9 +447,9 @@ in.
   keeper gender.
 - **Urban** — ~~exact play-down amount + keeper scoping/gender.~~ **Resolved:**
   unit play-down (1 woman → 6, 0 → 5), keeper excluded, any gender.
-- **Volo** — does a non-binary player alone satisfy the floor? (the test of the
-  two-category assumption — see Cross-cutting decisions) + keeper-inclusion
-  confirm.
+- **Volo** — ~~does a non-binary player alone satisfy the floor? + keeper-inclusion
+  confirm.~~ **Resolved:** non-binary counts with women (two-category assumption
+  holds), and the keeper is included (counts toward the limits, any gender).
 - **NYC Footy std** — ~~keeper scoping (does a keeper count toward the 2 women?).~~
   **Resolved:** keeper any gender, **counts** toward the rule → `keeperScoping =
   included`.
