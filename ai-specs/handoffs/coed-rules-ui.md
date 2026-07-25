@@ -84,8 +84,10 @@ Draft copy, top to bottom:
 > ( ) A maximum of `[M]` men.
 > ( ) A maximum of `[M]` men, and a minimum of `[N]` women, or we forfeit.
 >
-> *(cap shapes 3–4 only)* **Does your sport have a goalkeeper?** ( ) Yes ( ) No
-> *(if yes)* **Does the keeper count toward the men limit?** ( ) Yes ( ) No
+> *(every gender-rule shape)* **Does your sport have a goalkeeper?** ( ) Yes ( ) No
+> *(if yes)* **Which players do your league’s gender rules apply to?**
+> ( ) Everyone playing, including the goalkeeper.
+> ( ) Only players other than the goalkeeper. The goalkeeper may be any gender.
 >
 > Category we're protecting `[women]`  *(e.g. women, women/non-binary, females)*
 > *(cap shapes only)* Category we're restricting `[men]`  *(e.g. men, cis-men)*
@@ -103,11 +105,17 @@ Notes:
 - The **restricting** noun field reveals only for cap shapes; a value typed then
   hidden (by switching to a floor shape) is **preserved in form state, not
   cleared**, and persisted only when a cap shape is active.
+- Keeper is asked for **every gender-rule shape**, not only cap shapes. Floor
+  scope does not change today's aggregate side-size verdict, but NYC Footy and
+  Urban/NY Coed publish different all-player vs outfield-only rules; preserving
+  that league fact is required for league-native storage and future positional
+  advice.
 - Keeper stores **three** `keeperScoping` values so the two lines round-trip on
   re-edit: Q1 "does your sport have a goalkeeper?" No → `none`, Yes → Q2; Q2
-  "does it count?" Yes → `included`, No → `excluded`. Reconstruct the two lines
-  from the stored value when editing. (See the schema note above — `none` is
-  additive, engine unchanged.)
+  "everyone playing" → `included`, "players other than the goalkeeper" →
+  `excluded`. Reconstruct both lines from the stored value when editing. The
+  single scope applies to every active gender constraint. The engine remains
+  unchanged.
 - The same form is reused for later edits on the settings page. Editing rules on
   a live team needs no versioning (past games are immune — `pastRosterReport`
   has no quota clause).

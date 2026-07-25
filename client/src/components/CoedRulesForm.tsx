@@ -84,7 +84,7 @@ export function CoedRulesForm({
   const [hasGoalkeeper, setHasGoalkeeper] = useState<boolean | null>(
     team.setupCompletedAt === null ? null : team.keeperScoping !== "none",
   );
-  const [keeperCounts, setKeeperCounts] = useState<boolean | null>(
+  const [keeperIncluded, setKeeperIncluded] = useState<boolean | null>(
     team.setupCompletedAt === null || team.keeperScoping === "none"
       ? null
       : team.keeperScoping === "included",
@@ -119,11 +119,16 @@ export function CoedRulesForm({
     const nextErrors: Record<string, string> = {};
     if (gender === null) nextErrors.gender = "Choose Yes or No.";
     if (gender === "yes" && shape === null) nextErrors.shape = "Choose the rule that matches your league.";
-    if (gender === "yes" && capShape && hasGoalkeeper === null) {
+    if (gender === "yes" && shape !== null && hasGoalkeeper === null) {
       nextErrors.hasGoalkeeper = "Choose Yes or No.";
     }
-    if (gender === "yes" && capShape && hasGoalkeeper === true && keeperCounts === null) {
-      nextErrors.keeperCounts = "Choose Yes or No.";
+    if (
+      gender === "yes" &&
+      shape !== null &&
+      hasGoalkeeper === true &&
+      keeperIncluded === null
+    ) {
+      nextErrors.keeperScope = "Choose which players the rule applies to.";
     }
 
     const hasGenderRule = gender === "yes" && shape !== null;
@@ -141,14 +146,13 @@ export function CoedRulesForm({
           : shape === "play_down"
             ? "play_down"
             : "forfeit",
-      keeperScoping:
-        hasGenderRule && capShape
-          ? hasGoalkeeper === false
-            ? "none"
-            : keeperCounts === false
-              ? "excluded"
-              : "included"
-          : "included",
+      keeperScoping: hasGenderRule
+        ? hasGoalkeeper === false
+          ? "none"
+          : keeperIncluded === false
+            ? "excluded"
+            : "included"
+        : "included",
       quotaNounSingular: hasGenderRule ? protectedSingular : null,
       quotaNounPlural: hasGenderRule ? protectedPlural : null,
       restrictingNounSingular: hasGenderRule && capShape ? restrictingSingular : null,
@@ -235,7 +239,7 @@ export function CoedRulesForm({
               <p className={styles.error}>{errors.shape ?? errors.womenFloor ?? errors.menCeiling}</p>
             )}
 
-            <Expander open={capShape}>
+            <Expander open={shape !== null}>
               <div className={styles.nestedQuestion}>
                 <h3>Does your sport have a goalkeeper?</h3>
                 <div className={styles.yesNo}>
@@ -244,13 +248,27 @@ export function CoedRulesForm({
                 </div>
                 {errors.hasGoalkeeper && <p className={styles.error}>{errors.hasGoalkeeper}</p>}
                 <Expander open={hasGoalkeeper === true}>
-                  <div className={styles.keeperCounts}>
-                    <h3>Does the keeper count toward the men limit?</h3>
-                    <div className={styles.yesNo}>
-                      <Radio name="keeper-counts" value="yes" checked={keeperCounts === true} onChange={() => setKeeperCounts(true)}>Yes</Radio>
-                      <Radio name="keeper-counts" value="no" checked={keeperCounts === false} onChange={() => setKeeperCounts(false)}>No</Radio>
+                  <div className={styles.keeperScope}>
+                    <h3>Which players do your league’s gender rules apply to?</h3>
+                    <div className={styles.keeperOptions}>
+                      <Radio
+                        name="keeper-scope"
+                        value="included"
+                        checked={keeperIncluded === true}
+                        onChange={() => setKeeperIncluded(true)}
+                      >
+                        Everyone playing, including the goalkeeper.
+                      </Radio>
+                      <Radio
+                        name="keeper-scope"
+                        value="excluded"
+                        checked={keeperIncluded === false}
+                        onChange={() => setKeeperIncluded(false)}
+                      >
+                        Only players other than the goalkeeper. The goalkeeper may be any gender.
+                      </Radio>
                     </div>
-                    {errors.keeperCounts && <p className={styles.error}>{errors.keeperCounts}</p>}
+                    {errors.keeperScope && <p className={styles.error}>{errors.keeperScope}</p>}
                   </div>
                 </Expander>
               </div>

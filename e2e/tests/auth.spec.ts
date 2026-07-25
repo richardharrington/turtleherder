@@ -41,16 +41,22 @@ test("self-serve creation signs in the captain and completes guided setup", asyn
   await page.getByLabel("Fewest to play").fill("5");
 
   await page.locator('input[name="gender-rule"][value="yes"]').check();
-  await page.locator('input[name="rule-shape"][value="cap-and-floor"]').check();
-  await page.getByLabel("Maximum restricted players for combined rule").fill("5");
-  await page.getByLabel("Minimum protected players for combined rule").fill("1");
+  await page.locator('input[name="rule-shape"][value="play-down"]').check();
+  await page.getByLabel("Minimum protected players", { exact: true }).fill("2");
   await page.locator('input[name="has-goalkeeper"][value="yes"]').check();
-  await page.locator('input[name="keeper-counts"][value="no"]').check();
+  await expect(
+    page.getByRole("heading", {
+      name: "Which players do your league’s gender rules apply to?",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Everyone playing, including the goalkeeper.", { exact: true }),
+  ).toBeVisible();
+  await page.locator('input[name="keeper-scope"][value="excluded"]').check();
   await expect(page.getByLabel("Category we’re protecting")).toHaveValue("women");
   await page.getByLabel("Category we’re protecting").fill("people");
   await expect(page.getByLabel("Singular").first()).toHaveValue("person");
   await page.getByLabel("Category we’re protecting").fill("women");
-  await expect(page.getByLabel("Category we’re restricting")).toHaveValue("men");
   await page.getByRole("button", { name: "Finish setup" }).click();
 
   await expect(page).toHaveURL("/night-owls");
@@ -61,13 +67,15 @@ test("self-serve creation signs in the captain and completes guided setup", asyn
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("button", { name: "Night Owl United" })).toBeVisible();
   await expect(page.locator("body")).toContainText("/night-owls");
-  await expect(page.getByLabel("Maximum restricted players for combined rule")).toHaveValue("5");
+  await expect(
+    page.getByLabel("Minimum protected players", { exact: true }),
+  ).toHaveValue("2");
 
-  // Every stored keeper value reconstructs the two questions faithfully.
+  // A floor-only rule preserves all three keeper-scope values on re-edit.
   await expect(page.locator('input[name="has-goalkeeper"][value="yes"]')).toBeChecked();
-  await expect(page.locator('input[name="keeper-counts"][value="no"]')).toBeChecked();
+  await expect(page.locator('input[name="keeper-scope"][value="excluded"]')).toBeChecked();
 
-  await page.locator('input[name="keeper-counts"][value="yes"]').check();
+  await page.locator('input[name="keeper-scope"][value="included"]').check();
   await Promise.all([
     page.waitForResponse((response) =>
       response.url().endsWith("/api/teams/night-owls/rules") &&
@@ -77,7 +85,7 @@ test("self-serve creation signs in the captain and completes guided setup", asyn
   ]);
   await page.reload();
   await expect(page.locator('input[name="has-goalkeeper"][value="yes"]')).toBeChecked();
-  await expect(page.locator('input[name="keeper-counts"][value="yes"]')).toBeChecked();
+  await expect(page.locator('input[name="keeper-scope"][value="included"]')).toBeChecked();
 
   await page.locator('input[name="has-goalkeeper"][value="no"]').check();
   await Promise.all([
@@ -89,7 +97,7 @@ test("self-serve creation signs in the captain and completes guided setup", asyn
   ]);
   await page.reload();
   await expect(page.locator('input[name="has-goalkeeper"][value="no"]')).toBeChecked();
-  await expect(page.locator('input[name="keeper-counts"]')).toHaveCount(0);
+  await expect(page.locator('input[name="keeper-scope"]')).toHaveCount(0);
 });
 
 test("a signed-out visitor at a team URL is bounced to the wall", async ({

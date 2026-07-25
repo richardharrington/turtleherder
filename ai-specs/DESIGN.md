@@ -1310,7 +1310,7 @@ one stored ruleset is one side size. Everything below is shown at 7v7.)
 | `menCeiling` (null) | Max men **on the field**. Never forfeits — surplus men sub. Null = no cap. |
 | `womenFloor` (null) | Min women/non-binary. Null = no gender minimum. |
 | `floorType` | Qualifies `womenFloor` only: `play_down` (shrink the side) or `forfeit` (hard). Null unless `womenFloor` is set. |
-| `keeperScoping` | `included` (constraints bind all on-field players) or `excluded` (one free any-gender keeper slot; constraints bind the other `fullSide − 1`). |
+| `keeperScoping` | `none` (the sport has no goalkeeper), `included` (constraints bind all on-field players), or `excluded` (one free any-gender keeper slot; constraints bind the other `fullSide − 1`). |
 | `quotaNounSingular` / `Plural` | The protected category's display noun ("woman"/"women"); already in the schema. |
 
 ### Why two gender knobs, not one
@@ -1452,7 +1452,7 @@ picker** and **per-league provenance record** ideas (both captured in
 | Gender constraint shape | Two independent, both-optional knobs (`menCeiling`, `womenFloor`); wording derived from which is set | Rejected: one canonical knob + skin (can't represent Volo); two knobs + independent skin (buys "compute as X, show as Y", which no league needs) |
 | Storage | Flat typed columns | Rejected union/constraint-list as YAGNI; adopted "unionize before any non-quota family" rule |
 | Engine contract | Largest-legal-side core, lean status object, `report.ts` pure grammar | Keeps rule logic in one place; report never re-derives |
-| Keeper | Single `keeperScoping` boolean | Rejected per-knob flags and a typed keeper slot — no league splits cap- from floor-exemption |
+| Keeper | Single three-value `keeperScoping` | `none` / `included` / `excluded`; rejected per-knob flags and a typed keeper slot — no league splits cap- from floor-exemption |
 | Soft vs hard | One `floorType` enum bound to `womenFloor`; ceiling always soft | Rejected per-knob floorType (empty for a cap) and folding hardness into `minToPlay` (the legacy conflation) |
 | Min-to-play vs full-side | Store both; `minToPlay == fullSide` = no shorthanded | Neither derives from the other |
 | Soft short-on-women framing | Layered: legal fallback + path to full strength | Sport-neutral ("play" not "field"); turnout not "recruit"; never-guilt |
@@ -1696,21 +1696,27 @@ cleared. Note the restricting noun's only surface today is the form's own cap
 sentences — the report still never says "men" — so it's league-native form
 display plus future-proofing, not a report change.
 
-**The keeper — a two-line progressive question, cap shapes only.** Keeper scoping
-only changes the *verdict* for cap shapes, so it's asked only there. And because
-the app is sport-neutral (bocce has no keeper), it's two lines: *"Does your sport
-have a goalkeeper?"* → if yes, *"Does the keeper count toward the men limit?"*
-Each answer stores a **distinct `keeperScoping` value** so the form round-trips
-faithfully on re-edit: **`none`** (no goalkeeper), **`included`** (a keeper that
-counts — bound like everyone), **`excluded`** (a free any-gender keeper slot).
-The `none` value was **added in 7.1**: the earlier two-value model collapsed "no
-goalkeeper" and "keeper counts" both into `included`, which then read back as the
-wrong sentence when a captain re-opened the form — a data-model gap (we asked
-"do you have a keeper?" and discarded the answer), not a copy problem. The engine
-needs **no change**: it only ever tests `keeperScoping === "excluded"`
-(`engine.ts:39,54,80`), so `none` behaves identically to `included` (bound),
-exactly as the math requires. `none` is purely additive — existing
-`included`/`excluded` rows keep their meaning, no backfill.
+**The keeper — a two-line progressive question for every gender-rule shape.**
+Keeper scoping changes the aggregate *verdict* only for cap shapes, but the
+published floor rules still distinguish everyone-playing rules (NYC Footy) from
+outfield-only rules (Urban and NY Coed). Omitting the question for floor shapes
+therefore discarded a league fact and violated the league-native storage
+principle, even though today's attendance report produces the same side size.
+The form now asks, after any shape is chosen: *"Does your sport have a
+goalkeeper?"* If yes, it reveals the sport-neutral scope question:
+
+> **Which players do your league’s gender rules apply to?**
+> ( ) Everyone playing, including the goalkeeper.
+> ( ) Only players other than the goalkeeper. The goalkeeper may be any gender.
+
+The answers store a **distinct `keeperScoping` value**: **`none`** (no
+goalkeeper), **`included`** (everyone-playing), or **`excluded`** (players other
+than the goalkeeper). The single value applies to every active gender constraint;
+no surveyed league splits cap scope from floor scope. The engine needs **no
+change**: it only tests `keeperScoping === "excluded"` (`engine.ts:39,54,80`), so
+`none` behaves identically to `included` in the math. The `none` value was added
+in 7.1 to make the first question round-trip; existing `included`/`excluded`
+rows keep their meaning, with no backfill.
 
 **Game format — nullable, its own section, and the "in setup" lifecycle.**
 `full_side` / `min_to_play` move off the signup form (milestone 7 shipped them
@@ -1770,7 +1776,7 @@ sets it) and stamp `setup_completed_at = now()` (CLI teams are born complete).
 | Nouns — labels & defaults | "Category we're protecting" (`women`) / "restricting" (`men`); grey examples | Names the engine role, not a gender — "model the rule, not identity" |
 | Nouns — forms | Plural entered; singular derived by hard-coded rules, shown + overridable | Derivation needn't be perfect because it's editable |
 | Nouns — storage | Both stored; restricting field revealed for cap shapes only, hidden-not-cleared | Restricting noun's only surface today is the form's cap sentences (report never says "men") |
-| Keeper | Two-line progressive (has goalkeeper? → counts?), cap shapes only; three `keeperScoping` values `none`/`included`/`excluded` | `none` added in 7.1 so the form round-trips (the 2-value model read back "no goalkeeper" wrong on re-edit); engine unchanged — it only tests `=== excluded`, so `none` acts like `included`; no backfill |
+| Keeper | Two-line progressive for every gender-rule shape: has goalkeeper? → which players do the rules apply to?; three `keeperScoping` values `none`/`included`/`excluded` | Floor scope does not change today's aggregate verdict, but it is a published league fact needed for league-native storage and future positional advice; sport-neutral scope options replace ambiguous “counts toward” wording; engine unchanged |
 | Game format placement | Nullable `full_side`/`min_to_play` in a "Game format" section; `7`/`5` as placeholder, not default | Defaulting is the one place the app would store an unchosen value |
 | Team lifecycle | "In setup" until format set + gender choice made; `setup_completed_at` in DB | Server-enforced gate blocks player links + game creation; DB not localStorage (team fact, cross-device, server-visible) |
 | Create handoff | A dedicated setup screen (save-link on top), not the team page | Team page would juggle three jobs; in-setup team routes captain to the setup screen |
@@ -1943,7 +1949,7 @@ translating the six-parameter engine into questions a captain understands is the
 hard, distinguishing part. A guided, single-page progressive-disclosure flow: a
 required "do you have gender rules?" choice → a four-shape picker worded as the
 captain's own rule → two labeled noun fields ("protecting"/"restricting") → a
-sport-neutral two-line keeper question (cap shapes only). `full_side`/`min_to_play`
+sport-neutral two-line keeper question (every gender-rule shape). `full_side`/`min_to_play`
 move off signup into a nullable "Game format" section, introducing an **"in setup"
 team lifecycle** (`setup_completed_at`): a team can't create player links or games
 until format is set and the gender choice is made. Create lands on a dedicated
