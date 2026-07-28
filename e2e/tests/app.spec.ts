@@ -12,6 +12,25 @@ function playerRow(page: Page, name: string) {
   return page.getByTestId("player-row").filter({ hasText: name });
 }
 
+// Opens the access row's nested Manage link disclosure. CI has produced a
+// run where this toggle swallowed a click: the button took focus but
+// aria-expanded stayed false and the disclosure never opened, with the
+// row's own expansion still animating at that moment. The cause is
+// unpinned — an isolated probe wouldn't reproduce it — so this re-clicks
+// on the observable state instead. A blind retry would toggle the
+// disclosure back shut, so only click while it still reads collapsed.
+async function openManageLink(page: Page) {
+  const toggle = page.getByRole("button", { name: "Manage link" });
+  await expect(async () => {
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+      await toggle.click();
+    }
+    await expect(toggle).toHaveAttribute("aria-expanded", "true", {
+      timeout: 1000,
+    });
+  }).toPass({ timeout: 10_000 });
+}
+
 test("marking attendance inline updates the row and the roster report", async ({
   page,
 }) => {
@@ -542,7 +561,7 @@ test.describe("access", () => {
 
     // Regenerate: confirmation names the player; success keeps the row
     // open, highlights the new URL, and resets usage to Never opened.
-    await page.getByRole("button", { name: "Manage link" }).click();
+    await openManageLink(page);
     await page.getByRole("button", { name: "Generate a new link…" }).click();
     const regen = page.getByTestId("regenerate-confirm");
     await expect(regen).toContainText("Generate a new link for Carol?");
@@ -566,7 +585,7 @@ test.describe("access", () => {
     await stale.dispose();
 
     // Revoke: success beat, then the collapsed row preserves usage state.
-    await page.getByRole("button", { name: "Manage link" }).click();
+    await openManageLink(page);
     await page.getByRole("button", { name: "Revoke access…" }).click();
     const revoke = page.getByTestId("revoke-confirm");
     await expect(revoke).toContainText("Revoke Carol's access?");
